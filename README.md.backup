@@ -74,6 +74,68 @@ Comprehensive documentation is available in the `docs/` directory:
 
 **For detailed usage instructions, see [Product Documentation](docs/PRODUCT.md).**
 
+## Getting Started
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Telegram Bot Token
+
+### Installation & Run
+
+1. Clone the repository:
+
+   ```sh
+   git clone <repo-url>
+   cd cat-health-control
+   ```
+
+2. Create a `.env` file (example):
+
+   ```env
+   MONGO_USER=admin
+   MONGO_PASS=password
+   MONGO_HOST=db
+   MONGO_PORT=27017
+   MONGO_DB=cat_health
+   TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+   FLASK_SECRET_KEY=your-secret-key-for-sessions
+   DEFAULT_PASSWORD=admin123
+   ```
+
+3. Start all services:
+
+   ```sh
+   docker-compose up -d --build
+   ```
+
+### Usage
+
+#### Telegram Bot
+
+- Use the bot's main menu to select actions:
+  - **Asthma Attack**: Log an asthma attack by providing details such as duration and reason.
+  - **Defecation**: Log a defecation event by selecting the stool type.
+  - **Export Data**: View or export health logs in various formats (CSV, markdown, or message).
+- Follow the bot's prompts to complete each action.
+- Use the "Back to Menu" button to return to the main menu at any time.
+
+#### Web Interface
+
+1. Access the web interface at `http://localhost:5001`
+2. Login with credentials:
+   - Username: `admin`
+   - Password: `admin123`
+3. Use the dashboard to:
+   - Record asthma attacks with full details
+   - Record defecation events
+   - View history of all recorded events
+4. The interface is fully responsive and works on mobile devices
+
+### Usage
+
+**For detailed usage instructions, see [Product Documentation](docs/PRODUCT.md).**
+
 #### Telegram Bot
 
 - Use main menu buttons: **Asthma Attack**, **Defecation**, **Export Data**
@@ -121,38 +183,65 @@ Comprehensive documentation is available in the `docs/` directory:
 - **Frontend**: Jinja2 templates, vanilla JavaScript, custom CSS
 - **Deployment**: Docker + Docker Compose
 
-## 📂 Project Structure
+## Getting Started
 
-```text
-cat-health-control-bot/
-├── bot/                    # Telegram Bot
-│   ├── main.py            # Bot entry point
-│   ├── handlers.py        # Command handlers
-│   ├── db.py              # Database operations
-│   ├── config.py          # Configuration
-│   └── whitelist.txt      # Authorized users
-├── web/                    # Web Application
-│   ├── main.py            # Web entry point
-│   ├── app.py             # Flask application
-│   ├── templates/         # HTML templates
-│   │   ├── base.html
-│   │   ├── login.html
-│   │   └── dashboard.html
-│   └── static/            # CSS, JS
-│       └── css/
-│           └── style.css
-├── docs/                   # Documentation
-│   ├── PRODUCT.md         # Product documentation
-│   └── TECHNICAL.md       # Technical documentation
-├── .env.example           # Environment variables template
-├── docker-compose.yml     # Docker orchestration
-├── Dockerfile             # Container definition
-├── requirements.txt       # Python dependencies
-├── pyproject.toml         # Project metadata
-└── README.md              # This file
-```
+### Prerequisites
 
-## Useful Commands
+- Docker and Docker Compose
+- Telegram Bot Token
+
+### Installation & Run
+
+1. Clone the repository:
+
+   ```sh
+   git clone <repo-url>
+   cd cat-health-control
+   ```
+
+2. Create a `.env` file (example):
+
+   ```env
+   MONGO_USER=admin
+   MONGO_PASS=password
+   MONGO_HOST=db
+   MONGO_PORT=27017
+   MONGO_DB=cat_health
+   TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+   FLASK_SECRET_KEY=your-secret-key-for-sessions
+   DEFAULT_PASSWORD=admin123
+   ```
+
+3. Start all services:
+
+   ```sh
+   docker-compose up -d --build
+   ```
+
+### Usage
+
+#### Telegram Bot
+
+- Use the bot's main menu to select actions:
+  - **Asthma Attack**: Log an asthma attack by providing details such as duration and reason.
+  - **Defecation**: Log a defecation event by selecting the stool type.
+  - **Export Data**: View or export health logs in various formats (CSV, markdown, or message).
+- Follow the bot's prompts to complete each action.
+- Use the "Back to Menu" button to return to the main menu at any time.
+
+#### Web Interface
+
+1. Access the web interface at `http://localhost:5001`
+2. Login with credentials:
+   - Username: `admin`
+   - Password: `admin123`
+3. Use the dashboard to:
+   - Record asthma attacks with full details
+   - Record defecation events
+   - View history of all recorded events
+4. The interface is fully responsive and works on mobile devices
+
+### Useful Commands
 
 **View logs**:
 ```sh
@@ -179,39 +268,35 @@ docker-compose ps
 
 **For more commands and advanced usage, see [Technical Documentation](docs/TECHNICAL.md).**
 
-## 🔒 Security
+## 📂 Project Structure
 
-- **Authentication**: Login required for web interface
-- **Whitelist**: Only authorized Telegram users can access the bot
-- **Session Management**: Secure Flask sessions with secret key
-- **Data Isolation**: Users see only their own data
-- **Docker Isolation**: Services run in isolated containers
+```text
+bot/
+  db.py            # MongoDB database logic
+  main.py          # Telegram bot logic
+  whitelist.txt    # User whitelist
+web/
+  app.py           # Flask web application
+  main.py          # Web app entry point
+  templates/       # HTML templates
+    base.html
+    login.html
+    dashboard.html
+  static/          # Static files (CSS, JS)
+    css/
+      style.css
+.env
+docker-compose.yml
+Dockerfile
+README.md
+requirements.txt
+pyproject.toml
+```
 
-**For security best practices, see [Technical Documentation](docs/TECHNICAL.md).**
+## Contributing
 
-## 🚀 Deployment
-
-### Local Development
-
-See [Technical Documentation](docs/TECHNICAL.md#development) for local development setup without Docker.
-
-### Production Deployment
-
-For production deployment with Nginx, HTTPS, and monitoring, see [Technical Documentation](docs/TECHNICAL.md#production-deployment).
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-See [Technical Documentation](docs/TECHNICAL.md#contributing) for coding standards and guidelines.
+Pull requests and suggestions are welcome! Please open an issue or submit a PR to help improve the project.
 
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](https://opensource.org/license/mit) file for details.
-
