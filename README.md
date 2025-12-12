@@ -4,125 +4,214 @@
 
 **Cat Health Control Bot** is a Python-based Telegram bot designed to help cat owners track their pet's health. The bot allows users to log and monitor key health metrics, such as defecation events, stool types, asthma symptoms, and other relevant data, ensuring better care for their feline companions.
 
+## 📖 Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+- **[Product Documentation](docs/PRODUCT.md)** (Russian) — Полная продуктовая документация: руководство пользователя, описание функций, типичные сценарии использования
+- **[Technical Documentation](docs/TECHNICAL.md)** (Russian) — Техническая документация: архитектура, API, развёртывание, разработка
+
 ## Features
 
-- **Health Tracking**: Log defecation events with stool type classification and asthma symptoms, including duration, reason, and inhalation usage.
-- **Data Storage**: Persistent storage using MongoDB.
-- **User-Friendly**: Simple and intuitive commands for easy interaction.
-- **Web Interface**: Modern web application with authentication and mobile-responsive design.
-- **Dockerized**: Fully containerized for seamless deployment.
-- **Extensible**: Easily add new features or metrics to track.
+- 🫁 **Asthma Attack Tracking**: Log asthma attacks with duration, reason, inhalation usage, and comments
+- 💩 **Defecation Monitoring**: Track stool type, food correlation, and digestive health
+- ⚖️ **Weight Control**: Record weight measurements with food type tracking
+- 📊 **Data Export**: Export data in CSV, TSV, HTML, and Markdown formats
+- 🌐 **Web Interface**: Modern, responsive web application with full CRUD operations
+- 🤖 **Telegram Bot**: Quick event logging through mobile-friendly bot interface
+- 🗄️ **MongoDB Storage**: Persistent, scalable data storage
+- 🐳 **Fully Dockerized**: Easy deployment with Docker Compose
+- 🔒 **Secure**: Authentication, user isolation, and whitelist protection
 
-## Dependencies
-
-- **python-telegram-bot**: Telegram Bot API
-- **pymongo**: MongoDB client for Python
-- **flask**: Web framework for the web interface
-- **werkzeug**: WSGI utilities (for password hashing)
-- **Docker, Docker Compose**: For containerized deployment
-
-## How It Works
-
-1. **User** sends a command to log a health event (e.g., `/log_defecation` or `/log_asthma`).
-2. **Bot** prompts the user for details, such as stool type or asthma symptoms (duration, reason, inhalation usage, and comments).
-3. **Data** is stored in a MongoDB database.
-4. **User** can retrieve logs or summaries using commands (e.g., `/get_logs`).
-
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- Telegram Bot Token
+- Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
+- Your Telegram ID (from [@userinfobot](https://t.me/userinfobot))
 
-### Installation & Run
+### Installation
 
-1. Clone the repository:
-
+1. **Clone the repository**:
    ```sh
-   git clone <repo-url>
-   cd cat-health-control
+   git clone https://github.com/aa-blinov/cat-health-control-bot.git
+   cd cat-health-control-bot
    ```
 
-2. Create a `.env` file (example):
-
+2. **Create `.env` file**:
+   ```sh
+   cp .env.example .env
+   ```
+   
+   Edit `.env` and set your values:
    ```env
    MONGO_USER=admin
-   MONGO_PASS=password
+   MONGO_PASS=your_secure_password
    MONGO_HOST=db
    MONGO_PORT=27017
    MONGO_DB=cat_health
-   TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-   FLASK_SECRET_KEY=your-secret-key-for-sessions
+   TELEGRAM_BOT_TOKEN=your_bot_token_here
+   FLASK_SECRET_KEY=your_secret_key_here
    DEFAULT_PASSWORD=admin123
    ```
 
-3. Start all services:
+3. **Add your Telegram ID to whitelist**:
+   ```sh
+   echo "YOUR_TELEGRAM_ID" > bot/whitelist.txt
+   ```
 
+4. **Start the application**:
    ```sh
    docker-compose up -d --build
    ```
 
+5. **Access the services**:
+   - **Web Interface**: http://localhost:5001 (login: admin / admin123)
+   - **Telegram Bot**: Find your bot in Telegram and send `/start`
+
 ### Usage
+
+**For detailed usage instructions, see [Product Documentation](docs/PRODUCT.md).**
 
 #### Telegram Bot
 
-- Use the bot's main menu to select actions:
-  - **Asthma Attack**: Log an asthma attack by providing details such as duration and reason.
-  - **Defecation**: Log a defecation event by selecting the stool type.
-  - **Export Data**: View or export health logs in various formats (CSV, markdown, or message).
-- Follow the bot's prompts to complete each action.
-- Use the "Back to Menu" button to return to the main menu at any time.
+- Use main menu buttons: **Asthma Attack**, **Defecation**, **Export Data**
+- Follow bot's prompts to complete each action
+- Use "Back to Menu" button to return at any time
 
 #### Web Interface
 
-1. Access the web interface at `http://localhost:5001`
-2. Login with credentials:
-   - Username: `admin`
-   - Password: `admin123`
-3. Use the dashboard to:
-   - Record asthma attacks with full details
+1. Login at `http://localhost:5001`
+2. Use dashboard cards to:
+   - Record asthma attacks
    - Record defecation events
-   - View history of all recorded events
-4. The interface is fully responsive and works on mobile devices
+   - Record weight measurements
+   - View and manage history
+3. Export data in various formats (CSV, TSV, HTML, Markdown)
 
-### Useful Commands
+## 🏗️ Architecture
 
-- Stop all services:
-
-  ```sh
-  docker-compose down
-  ```
-
-## Project Structure
-
-```text
-bot/
-  db.py            # MongoDB database logic
-  main.py          # Telegram bot logic
-  whitelist.txt    # User whitelist
-web/
-  app.py           # Flask web application
-  main.py          # Web app entry point
-  templates/       # HTML templates
-    base.html
-    login.html
-    dashboard.html
-  static/          # Static files (CSS, JS)
-    css/
-      style.css
-.env
-docker-compose.yml
-Dockerfile
-README.md
-requirements.txt
-pyproject.toml
+```
+┌─────────────┐
+│    User     │
+└──────┬──────┘
+   ┌───┴───┐
+   │       │
+┌──▼──┐ ┌─▼───┐
+│T-Bot│ │ Web │
+└──┬──┘ └──┬──┘
+   └───┬───┘
+    ┌──▼──┐
+    │ DB  │
+    └─────┘
 ```
 
-## Contributing
+- **Telegram Bot**: Quick mobile data entry
+- **Web Application**: Detailed management and analysis (Flask)
+- **MongoDB**: Shared data storage
+- **Docker Compose**: Container orchestration
 
-Pull requests and suggestions are welcome! Please open an issue or submit a PR to help improve the project.
+## 📚 Technical Stack
+
+- **Backend**: Python 3.x
+- **Bot Framework**: python-telegram-bot
+- **Web Framework**: Flask
+- **Database**: MongoDB
+- **Frontend**: Jinja2 templates, vanilla JavaScript, custom CSS
+- **Deployment**: Docker + Docker Compose
+
+## 📂 Project Structure
+
+```text
+cat-health-control-bot/
+├── bot/                    # Telegram Bot
+│   ├── main.py            # Bot entry point
+│   ├── handlers.py        # Command handlers
+│   ├── db.py              # Database operations
+│   ├── config.py          # Configuration
+│   └── whitelist.txt      # Authorized users
+├── web/                    # Web Application
+│   ├── main.py            # Web entry point
+│   ├── app.py             # Flask application
+│   ├── templates/         # HTML templates
+│   │   ├── base.html
+│   │   ├── login.html
+│   │   └── dashboard.html
+│   └── static/            # CSS, JS
+│       └── css/
+│           └── style.css
+├── docs/                   # Documentation
+│   ├── PRODUCT.md         # Product documentation
+│   └── TECHNICAL.md       # Technical documentation
+├── .env.example           # Environment variables template
+├── docker-compose.yml     # Docker orchestration
+├── Dockerfile             # Container definition
+├── requirements.txt       # Python dependencies
+├── pyproject.toml         # Project metadata
+└── README.md              # This file
+```
+
+## Useful Commands
+
+**View logs**:
+```sh
+docker-compose logs -f        # All services
+docker-compose logs -f bot    # Bot only
+docker-compose logs -f web    # Web only
+```
+
+**Stop services**:
+```sh
+docker-compose down
+```
+
+**Restart a service**:
+```sh
+docker-compose restart bot
+docker-compose restart web
+```
+
+**Check status**:
+```sh
+docker-compose ps
+```
+
+**For more commands and advanced usage, see [Technical Documentation](docs/TECHNICAL.md).**
+
+## 🔒 Security
+
+- **Authentication**: Login required for web interface
+- **Whitelist**: Only authorized Telegram users can access the bot
+- **Session Management**: Secure Flask sessions with secret key
+- **Data Isolation**: Users see only their own data
+- **Docker Isolation**: Services run in isolated containers
+
+**For security best practices, see [Technical Documentation](docs/TECHNICAL.md).**
+
+## 🚀 Deployment
+
+### Local Development
+
+See [Technical Documentation](docs/TECHNICAL.md#development) for local development setup without Docker.
+
+### Production Deployment
+
+For production deployment with Nginx, HTTPS, and monitoring, see [Technical Documentation](docs/TECHNICAL.md#production-deployment).
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+See [Technical Documentation](docs/TECHNICAL.md#contributing) for coding standards and guidelines.
 
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](https://opensource.org/license/mit) file for details.
+
