@@ -15,6 +15,7 @@
     --ios-purple: #BF5AF2;
     --ios-pink: #FF375F;
     --ios-yellow: #FFD60A;
+    --ios-brown: #A2845E;
     
     /* iOS Background Colors */
     --ios-bg-primary: #000000;
@@ -273,6 +274,16 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+.action-cards .action-card-feeding {
+    border-left: 4px solid var(--ios-brown);
+}
+
+.action-cards .action-card-feeding:hover,
+.action-cards .action-card-feeding:focus {
+    background: rgba(162, 132, 94, 0.1);
+    border-left-color: var(--ios-brown);
+}
+
 .action-cards .action-card-asthma {
     border-left: 4px solid var(--ios-red);
 }
@@ -335,11 +346,6 @@ body {
 
 .action-cards .action-card-admin {
     border-left: 4px solid var(--ios-pink);
-}
-
-.action-cards .action-card-admin h3 {
-    font-size: 0.875rem;
-    line-height: 1.2;
 }
 
 .action-cards .action-card-admin:hover,
@@ -1137,6 +1143,11 @@ body {
     font-weight: 500;
 }
 
+.tab-btn[data-tab="feeding"].active {
+    border-left: 3px solid var(--ios-brown);
+    background: rgba(162, 132, 94, 0.15);
+}
+
 .tab-btn[data-tab="asthma"].active {
     border-left: 3px solid var(--ios-red);
     background: rgba(255, 69, 58, 0.15);
@@ -1175,6 +1186,10 @@ body {
 .history-item:active {
     transform: scale(0.98);
     background: var(--card-hover);
+}
+
+.history-item-feeding {
+    border-left-color: var(--ios-brown);
 }
 
 .history-item-asthma {
@@ -1274,6 +1289,9 @@ body {
     flex-direction: column;
     gap: 0.75rem;
     margin-bottom: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .loading {

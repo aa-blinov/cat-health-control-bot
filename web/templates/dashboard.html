@@ -7,6 +7,16 @@
     <!-- Main Menu -->
     <div id="main-menu" class="screen active">
         <div class="action-cards">
+            <div class="card action-card action-card-feeding" onclick="showScreen('feeding-form')">
+                <h3>Дневная порция корма</h3>
+                <p>Записать порцию</p>
+            </div>
+            
+            <div class="card action-card action-card-weight" onclick="showScreen('weight-form')">
+                <h3>Вес</h3>
+                <p>Записать вес</p>
+            </div>
+            
             <div class="card action-card action-card-asthma" onclick="showScreen('asthma-form')">
                 <h3>Приступ астмы</h3>
                 <p>Записать приступ</p>
@@ -15,11 +25,6 @@
             <div class="card action-card action-card-defecation" onclick="showScreen('defecation-form')">
                 <h3>Дефекация</h3>
                 <p>Записать дефекацию</p>
-            </div>
-            
-            <div class="card action-card action-card-weight" onclick="showScreen('weight-form')">
-                <h3>Вес</h3>
-                <p>Записать вес</p>
             </div>
             
             <div class="card action-card action-card-history" onclick="showScreen('history')">
@@ -38,6 +43,41 @@
                 <p>Управление пользователями</p>
             </div>
         </div>
+    </div>
+    
+    <!-- Feeding Form -->
+    <div id="feeding-form" class="screen">
+        <div class="form-header">
+            <button class="back-btn" onclick="showScreen('main-menu')">← Назад</button>
+            <h2>Записать дневную порцию корма</h2>
+        </div>
+        <form id="feeding-form-element" class="inline-form">
+            <div class="form-content">
+                <div id="feeding-pet-info" class="pet-info-badge" style="display: none;"></div>
+                <input type="hidden" id="feeding-record-id" name="record_id" value="">
+                <div class="form-row">
+                    <div class="form-group form-group-half">
+                        <label for="feeding-date">Дата</label>
+                        <input type="date" id="feeding-date" name="date" required>
+                    </div>
+                    <div class="form-group form-group-half">
+                        <label for="feeding-time">Время</label>
+                        <input type="time" id="feeding-time" name="time" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="feeding-food-weight">Вес корма (граммы)</label>
+                    <input type="number" id="feeding-food-weight" name="food_weight" min="0" step="0.1" placeholder="Например: 50" required>
+                </div>
+                <div class="form-group">
+                    <label for="feeding-comment">Комментарий (необязательно)</label>
+                    <textarea id="feeding-comment" name="comment" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-block" id="feeding-submit-btn">Сохранить</button>
+            </div>
+        </form>
     </div>
     
     <!-- Asthma Form -->
@@ -439,9 +479,10 @@
             <div class="export-menu-content">
                 <h3 id="export-menu-title">Выберите тип данных:</h3>
                 <div id="export-type-selection" class="export-options">
+                    <button class="btn btn-secondary btn-block" onclick="selectExportType('feeding')">Дневные порции</button>
+                    <button class="btn btn-secondary btn-block" onclick="selectExportType('weight')">Вес</button>
                     <button class="btn btn-secondary btn-block" onclick="selectExportType('asthma')">Приступы астмы</button>
                     <button class="btn btn-secondary btn-block" onclick="selectExportType('defecation')">Дефекации</button>
-                    <button class="btn btn-secondary btn-block" onclick="selectExportType('weight')">Вес</button>
                 </div>
                 <div id="export-format-selection" class="export-options" style="display: none;">
                     <button class="btn btn-secondary btn-block" onclick="exportData('csv')">CSV</button>
@@ -454,9 +495,10 @@
             </div>
         </div>
         <div class="history-tabs">
-            <button class="tab-btn active" data-tab="asthma" onclick="showHistoryTab('asthma'); return false;">Приступы астмы</button>
-            <button class="tab-btn" data-tab="defecation" onclick="showHistoryTab('defecation'); return false;">Дефекации</button>
+            <button class="tab-btn active" data-tab="feeding" onclick="showHistoryTab('feeding'); return false;">Дневные порции</button>
             <button class="tab-btn" data-tab="weight" onclick="showHistoryTab('weight'); return false;">Вес</button>
+            <button class="tab-btn" data-tab="asthma" onclick="showHistoryTab('asthma'); return false;">Приступы астмы</button>
+            <button class="tab-btn" data-tab="defecation" onclick="showHistoryTab('defecation'); return false;">Дефекации</button>
         </div>
         <div id="history-content" class="history-content">
             <div class="loading">Загрузка...</div>
@@ -519,6 +561,10 @@ function resetFormDefaults() {
     const dateStr = now.toISOString().split('T')[0];
     const timeStr = now.toTimeString().slice(0, 5);
     const settings = getSettings();
+    
+    // Feeding form
+    document.getElementById('feeding-date').value = dateStr;
+    document.getElementById('feeding-time').value = timeStr;
     
     // Asthma form
     document.getElementById('asthma-date').value = dateStr;
@@ -693,7 +739,7 @@ function updatePetSwitcher() {
 
 function updatePetInfoBadges() {
     const petName = selectedPetName || 'не выбрано';
-    const badges = ['asthma-pet-info', 'defecation-pet-info', 'weight-pet-info'];
+    const badges = ['feeding-pet-info', 'asthma-pet-info', 'defecation-pet-info', 'weight-pet-info'];
     
     badges.forEach(badgeId => {
         const badge = document.getElementById(badgeId);
@@ -847,7 +893,7 @@ function showScreen(screenId) {
             loadPetSharing();
         } else if (screenId === 'history') {
             // Load default tab when opening history
-            showHistoryTab('asthma');
+            showHistoryTab('feeding');
         }
     }
 }
@@ -874,7 +920,16 @@ function selectExportType(type) {
     document.getElementById('export-type-selection').style.display = 'none';
     document.getElementById('export-format-selection').style.display = 'block';
     document.getElementById('export-cancel-btn').style.display = 'none';
-    const typeName = type === 'asthma' ? 'Приступы астмы' : (type === 'defecation' ? 'Дефекации' : 'Вес');
+    let typeName;
+    if (type === 'feeding') {
+        typeName = 'Дневные порции';
+    } else if (type === 'asthma') {
+        typeName = 'Приступы астмы';
+    } else if (type === 'defecation') {
+        typeName = 'Дефекации';
+    } else {
+        typeName = 'Вес';
+    }
     document.getElementById('export-menu-title').textContent = `Выберите формат (${typeName}):`;
 }
 
@@ -959,10 +1014,11 @@ function showHistoryTab(type) {
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.remove('active');
+        const isFeeding = type === 'feeding' && btn.textContent.includes('Дневные порции');
         const isAsthma = type === 'asthma' && btn.textContent.includes('астмы');
         const isDefecation = type === 'defecation' && btn.textContent.includes('Дефекации');
         const isWeight = type === 'weight' && btn.textContent.includes('Вес');
-        if (isAsthma || isDefecation || isWeight) {
+        if (isFeeding || isAsthma || isDefecation || isWeight) {
             btn.classList.add('active');
         }
     });
@@ -977,12 +1033,30 @@ function showHistoryTab(type) {
     
     content.innerHTML = '<div class="loading">Загрузка...</div>';
     
-    const endpoint = type === 'asthma' ? `/api/asthma?pet_id=${petId}` : (type === 'defecation' ? `/api/defecation?pet_id=${petId}` : `/api/weight?pet_id=${petId}`);
+    let endpoint;
+    if (type === 'feeding') {
+        endpoint = `/api/feeding?pet_id=${petId}`;
+    } else if (type === 'asthma') {
+        endpoint = `/api/asthma?pet_id=${petId}`;
+    } else if (type === 'defecation') {
+        endpoint = `/api/defecation?pet_id=${petId}`;
+    } else {
+        endpoint = `/api/weight?pet_id=${petId}`;
+    }
     
     fetch(endpoint, { credentials: 'include' })
         .then(response => response.json())
         .then(data => {
-            const items = type === 'asthma' ? data.attacks : (type === 'defecation' ? data.defecations : data.weights);
+            let items;
+            if (type === 'feeding') {
+                items = data.feedings;
+            } else if (type === 'asthma') {
+                items = data.attacks;
+            } else if (type === 'defecation') {
+                items = data.defecations;
+            } else {
+                items = data.weights;
+            }
             
             if (items.length === 0) {
                 content.innerHTML = '<p class="no-data">Нет записей</p>';
@@ -993,7 +1067,14 @@ function showHistoryTab(type) {
             items.forEach(item => {
                 html += `<div class="history-item history-item-${type}" data-id="${item._id}">`;
                 html += `<div class="history-date">${item.date_time}</div>`;
-                if (type === 'asthma') {
+                if (type === 'feeding') {
+                    html += `<div class="history-details">`;
+                    html += `<span><strong>Вес корма:</strong> ${item.food_weight} г</span>`;
+                    if (item.comment && item.comment !== '-') {
+                        html += `<span><strong>Комментарий:</strong> ${item.comment}</span>`;
+                    }
+                    html += `</div>`;
+                } else if (type === 'asthma') {
                     html += `<div class="history-details">`;
                     html += `<span><strong>Длительность:</strong> ${item.duration}</span>`;
                     html += `<span><strong>Причина:</strong> ${item.reason}</span>`;
@@ -1937,6 +2018,57 @@ function resetPetForm() {
 }
 
 // Form submissions
+document.getElementById('feeding-form-element').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const recordId = formData.get('record_id');
+    const petId = getSelectedPetId();
+    if (!petId) {
+        showAlert('error', 'Выберите животное в меню навигации');
+        return;
+    }
+
+    const data = {
+        pet_id: petId,
+        date: formData.get('date'),
+        time: formData.get('time'),
+        food_weight: formData.get('food_weight'),
+        comment: formData.get('comment') || ''
+    };
+
+    try {
+        const url = recordId ? `/api/feeding/${recordId}` : '/api/feeding';
+        const method = recordId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'include',
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            showAlert('success', result.message || (recordId ? 'Дневная порция обновлена' : 'Дневная порция записана'));
+            document.getElementById('feeding-form-element').reset();
+            document.getElementById('feeding-record-id').value = '';
+            document.getElementById('feeding-submit-btn').textContent = 'Сохранить';
+            resetFormDefaults();
+            setTimeout(() => {
+                showScreen('main-menu');
+                if (recordId) {
+                    showScreen('history');
+                    showHistoryTab('feeding');
+                }
+            }, 150);
+        } else {
+            showAlert('error', result.error || 'Ошибка при сохранении');
+        }
+    } catch (error) {
+        showAlert('error', 'Ошибка при сохранении');
+    }
+});
+
 document.getElementById('asthma-form-element').addEventListener('submit', async function(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -2140,14 +2272,32 @@ async function editRecord(type, recordId) {
         return;
     }
     
-    const endpoint = type === 'asthma' ? `/api/asthma?pet_id=${petId}` : (type === 'defecation' ? `/api/defecation?pet_id=${petId}` : `/api/weight?pet_id=${petId}`);
+    let endpoint;
+    if (type === 'feeding') {
+        endpoint = `/api/feeding?pet_id=${petId}`;
+    } else if (type === 'asthma') {
+        endpoint = `/api/asthma?pet_id=${petId}`;
+    } else if (type === 'defecation') {
+        endpoint = `/api/defecation?pet_id=${petId}`;
+    } else {
+        endpoint = `/api/weight?pet_id=${petId}`;
+    }
     
     try {
         const response = await fetch(endpoint, {
             credentials: 'include'
         });
         const data = await response.json();
-        const items = type === 'asthma' ? data.attacks : (type === 'defecation' ? data.defecations : data.weights);
+        let items;
+        if (type === 'feeding') {
+            items = data.feedings;
+        } else if (type === 'asthma') {
+            items = data.attacks;
+        } else if (type === 'defecation') {
+            items = data.defecations;
+        } else {
+            items = data.weights;
+        }
         const record = items.find(item => item._id === recordId);
         
         if (!record) {
@@ -2160,7 +2310,15 @@ async function editRecord(type, recordId) {
         const [year, month, day] = datePart.split('-');
         const [hour, minute] = timePart.split(':');
         
-        if (type === 'asthma') {
+        if (type === 'feeding') {
+            document.getElementById('feeding-record-id').value = recordId;
+            document.getElementById('feeding-date').value = datePart;
+            document.getElementById('feeding-time').value = timePart;
+            document.getElementById('feeding-food-weight').value = record.food_weight || '';
+            document.getElementById('feeding-comment').value = record.comment && record.comment !== '-' ? record.comment : '';
+            document.getElementById('feeding-submit-btn').textContent = 'Обновить';
+            showScreen('feeding-form');
+        } else if (type === 'asthma') {
             document.getElementById('asthma-record-id').value = recordId;
             document.getElementById('asthma-date').value = datePart;
             document.getElementById('asthma-time').value = timePart;
@@ -2200,21 +2358,23 @@ async function deleteRecord(type, recordId) {
     if (!confirm('Вы уверены, что хотите удалить эту запись?')) {
         return;
     }
-    
+
     const endpoint = `/api/${type}/${recordId}`;
-    
+
     try {
         const response = await fetch(endpoint, {
             method: 'DELETE',
             credentials: 'include'
         });
-        
+
         const result = await response.json();
         if (response.ok) {
             showAlert('success', result.message || 'Запись удалена');
             // Reload history
             const currentTab = document.querySelector('.tab-btn.active');
-            if (currentTab.textContent.includes('астмы')) {
+            if (currentTab.textContent.includes('Дневные порции')) {
+                showHistoryTab('feeding');
+            } else if (currentTab.textContent.includes('астмы')) {
                 showHistoryTab('asthma');
             } else if (currentTab.textContent.includes('Дефекации')) {
                 showHistoryTab('defecation');

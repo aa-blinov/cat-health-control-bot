@@ -1699,6 +1699,165 @@ def delete_weight(record_id):
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/feeding", methods=["POST"])
+@login_required
+def add_feeding():
+    """Add feeding event."""
+    try:
+        data = request.get_json()
+        pet_id = request.args.get("pet_id") or data.get("pet_id")
+        
+        if not pet_id:
+            return jsonify({"error": "pet_id обязателен"}), 400
+        
+        username = getattr(request, 'current_user', None)
+        if not username:
+            return jsonify({"error": "Unauthorized"}), 401
+        
+        # Check pet access
+        if not check_pet_access(pet_id, username):
+            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        
+        # Parse datetime
+        date_str = data.get("date")
+        time_str = data.get("time")
+        if date_str and time_str:
+            event_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+        else:
+            event_dt = datetime.now()
+        
+        feeding_data = {
+            "pet_id": pet_id,
+            "date_time": event_dt,
+            "food_weight": data.get("food_weight", ""),
+            "comment": data.get("comment", "")
+        }
+        
+        db["feedings"].insert_one(feeding_data)
+        return jsonify({"success": True, "message": "Дневная порция записана"}), 201
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/feeding", methods=["GET"])
+@login_required
+def get_feedings():
+    """Get feedings for current pet."""
+    pet_id = request.args.get("pet_id")
+    
+    if not pet_id:
+        return jsonify({"error": "pet_id обязателен"}), 400
+    
+    username = getattr(request, 'current_user', None)
+    if not username:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    # Check pet access
+    if not check_pet_access(pet_id, username):
+        return jsonify({"error": "Нет доступа к этому животному"}), 403
+    
+    feedings = list(db["feedings"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
+    
+    for feeding in feedings:
+        feeding["_id"] = str(feeding["_id"])
+        if isinstance(feeding.get("date_time"), datetime):
+            feeding["date_time"] = feeding["date_time"].strftime("%Y-%m-%d %H:%M")
+    
+    return jsonify({"feedings": feedings})
+
+
+@app.route("/api/feeding/<record_id>", methods=["PUT"])
+@login_required
+def update_feeding(record_id):
+    """Update feeding event."""
+    try:
+        from bson import ObjectId
+        
+        username = getattr(request, 'current_user', None)
+        if not username:
+            return jsonify({"error": "Unauthorized"}), 401
+        
+        # Get existing record to check pet_id
+        existing = db["feedings"].find_one({"_id": ObjectId(record_id)})
+        if not existing:
+            return jsonify({"error": "Record not found"}), 404
+        
+        pet_id = existing.get("pet_id")
+        if not pet_id:
+            return jsonify({"error": "Invalid record"}), 400
+        
+        # Check pet access
+        if not check_pet_access(pet_id, username):
+            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        
+        data = request.get_json()
+        
+        # Parse datetime
+        date_str = data.get("date")
+        time_str = data.get("time")
+        if date_str and time_str:
+            event_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+        else:
+            event_dt = datetime.now()
+        
+        feeding_data = {
+            "date_time": event_dt,
+            "food_weight": data.get("food_weight", ""),
+            "comment": data.get("comment", "")
+        }
+        
+        result = db["feedings"].update_one(
+            {"_id": ObjectId(record_id)},
+            {"$set": feeding_data}
+        )
+        
+        if result.matched_count == 0:
+            return jsonify({"error": "Record not found"}), 404
+        
+        return jsonify({"success": True, "message": "Дневная порция обновлена"}), 200
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/feeding/<record_id>", methods=["DELETE"])
+@login_required
+def delete_feeding(record_id):
+    """Delete feeding event."""
+    try:
+        from bson import ObjectId
+        
+        username = getattr(request, 'current_user', None)
+        if not username:
+            return jsonify({"error": "Unauthorized"}), 401
+        
+        # Get existing record to check pet_id
+        existing = db["feedings"].find_one({"_id": ObjectId(record_id)})
+        if not existing:
+            return jsonify({"error": "Record not found"}), 404
+        
+        pet_id = existing.get("pet_id")
+        if not pet_id:
+            return jsonify({"error": "Invalid record"}), 400
+        
+        # Check pet access
+        if not check_pet_access(pet_id, username):
+            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        
+        result = db["feedings"].delete_one(
+            {"_id": ObjectId(record_id)}
+        )
+        
+        if result.deleted_count == 0:
+            return jsonify({"error": "Record not found"}), 404
+        
+        return jsonify({"success": True, "message": "Дневная порция удалена"}), 200
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/api/export/<export_type>/<format_type>", methods=["GET"])
 @login_required
 def export_data(export_type, format_type):
@@ -1717,7 +1876,15 @@ def export_data(export_type, format_type):
         if not check_pet_access(pet_id, username):
             return jsonify({"error": "Нет доступа к этому животному"}), 403
         
-        if export_type == "asthma":
+        if export_type == "feeding":
+            collection = db["feedings"]
+            title = "Дневные порции корма"
+            fields = [
+                ("date_time", "Дата и время"),
+                ("food_weight", "Вес корма (г)"),
+                ("comment", "Комментарий"),
+            ]
+        elif export_type == "asthma":
             collection = db["asthma_attacks"]
             title = "Приступы астмы"
             fields = [
