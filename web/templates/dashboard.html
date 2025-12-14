@@ -585,7 +585,11 @@ function getSettings() {
 // Set default date/time to now and apply saved defaults
 function resetFormDefaults() {
     const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
+    // Use local time, not UTC
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
     const timeStr = now.toTimeString().slice(0, 5);
     const settings = getSettings();
     
@@ -791,10 +795,10 @@ function updatePetInfoBadges() {
         const badge = document.getElementById(badgeId);
         if (badge) {
             if (selectedPetId && selectedPetName) {
-                badge.textContent = `Животное: ${petName}`;
+                badge.textContent = petName;
                 badge.style.display = 'block';
             } else {
-                badge.textContent = 'Животное: не выбрано';
+                badge.textContent = 'не выбрано';
                 badge.style.display = 'block';
             }
         }
@@ -1065,6 +1069,18 @@ async function exportData(format) {
     }
 }
 
+// Format date from YYYY-MM-DD HH:MM to DD.MM.YYYY HH:MM
+function formatDateTime(dateTimeStr) {
+    if (!dateTimeStr) return '';
+    const parts = dateTimeStr.split(' ');
+    if (parts.length !== 2) return dateTimeStr;
+    const [datePart, timePart] = parts;
+    const dateParts = datePart.split('-');
+    if (dateParts.length !== 3) return dateTimeStr;
+    const [year, month, day] = dateParts;
+    return `${day}.${month}.${year} ${timePart}`;
+}
+
 function showHistoryTab(type) {
     currentHistoryType = type;
     // Update tab buttons
@@ -1137,7 +1153,7 @@ function showHistoryTab(type) {
             let html = '<div class="history-list">';
             items.forEach(item => {
                 html += `<div class="history-item history-item-${type}" data-id="${item._id}">`;
-                html += `<div class="history-date">${item.date_time}</div>`;
+                html += `<div class="history-date">${formatDateTime(item.date_time)}</div>`;
                 const username = item.username || '-';
                 html += `<div class="history-user"><strong>Пользователь:</strong> ${username}</div>`;
                 if (type === 'feeding') {
@@ -1693,7 +1709,7 @@ async function loadPetSharing() {
     const petName = selectedPetName || 'не выбрано';
     const badge = document.getElementById('pet-sharing-pet-info');
     if (badge) {
-        badge.textContent = `Животное: ${petName}`;
+        badge.textContent = petName;
         badge.style.display = 'block';
     }
     
