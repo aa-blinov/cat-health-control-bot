@@ -18,6 +18,8 @@ from flask_limiter.errors import RateLimitExceeded
 
 from web.db import db, mongo_uri
 from gridfs import GridFS
+from bson import ObjectId
+from bson.errors import InvalidId
 
 # Configure logging
 def setup_logging(app):
@@ -209,6 +211,139 @@ def parse_event_datetime(date_str, time_str, context=""):
         raise ValueError("Both date and time must be provided together")
     else:
         return datetime.now()
+
+
+# Helper function to get current user with authorization check
+def get_current_user():
+    """
+    Get current authenticated user.
+    
+    Returns:
+        tuple: (username, error_response) where error_response is None if authorized,
+               or (None, (jsonify_response, status_code)) if not authorized
+    """
+    username = getattr(request, 'current_user', None)
+    if not username:
+        return None, (jsonify({"error": "Unauthorized"}), 401)
+    return username, None
+
+
+# Helper function to validate pet_id and check access
+def validate_pet_access(pet_id, username):
+    """
+    Validate pet_id format and check if user has access to the pet.
+    
+    Args:
+        pet_id: Pet ID string
+        username: Username to check access for
+    
+    Returns:
+        tuple: (success, error_response) where success is True if access granted,
+               or (False, (jsonify_response, status_code)) if validation/access fails
+    """
+    if not pet_id:
+        return False, (jsonify({"error": "pet_id обязателен"}), 400)
+    
+    if not validate_pet_id(pet_id):
+        return False, (jsonify({"error": "Неверный формат pet_id"}), 400)
+    
+    if not check_pet_access(pet_id, username):
+        return False, (jsonify({"error": "Нет доступа к этому животному"}), 403)
+    
+    return True, None
+
+
+# Helper function to safely parse event datetime with error handling and logging
+def parse_event_datetime_safe(date_str, time_str, context="", pet_id=None, username=None):
+    """
+    Safely parse event datetime with error handling and logging.
+    
+    Args:
+        date_str: Date string in format "YYYY-MM-DD"
+        time_str: Time string in format "HH:MM"
+        context: Context string for error messages (e.g., "asthma attack")
+        pet_id: Optional pet_id for logging
+        username: Optional username for logging
+    
+    Returns:
+        tuple: (datetime_object, error_response) where error_response is None if parsing succeeds,
+               or (None, (jsonify_response, status_code)) if parsing fails
+    """
+    if date_str and time_str:
+        try:
+            event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
+            return event_dt, None
+        except ValueError as e:
+            log_context = f"pet_id={pet_id}, user={username}" if pet_id and username else ""
+            logger.warning(f"Invalid datetime format for {context}: {log_context}, error={e}")
+            return None, (jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400)
+    else:
+        return datetime.now(), None
+
+
+# Helper function to get record and validate access for update/delete operations
+def get_record_and_validate_access(record_id, collection_name, username):
+    """
+    Get record by ID and validate user access.
+    
+    Args:
+        record_id: Record ID string (ObjectId)
+        collection_name: Name of the collection (e.g., "asthma_attacks")
+        username: Username to check access for
+    
+    Returns:
+        tuple: (record, pet_id, error_response) where error_response is None if successful,
+               or (None, None, (jsonify_response, status_code)) if validation fails
+    """
+    try:
+        record_id_obj = ObjectId(record_id)
+    except (InvalidId, TypeError, ValueError):
+        return None, None, (jsonify({"error": "Invalid record_id format"}), 400)
+    
+    existing = db[collection_name].find_one({"_id": record_id_obj})
+    if not existing:
+        return None, None, (jsonify({"error": "Record not found"}), 404)
+    
+    pet_id = existing.get("pet_id")
+    if not pet_id:
+        return None, None, (jsonify({"error": "Invalid record"}), 400)
+    
+    # Check pet access
+    if not check_pet_access(pet_id, username):
+        return None, None, (jsonify({"error": "Нет доступа к этому животному"}), 403)
+    
+    return existing, pet_id, None
+
+
+# Helper function to get pet and validate access
+def get_pet_and_validate(pet_id, username, require_owner=False):
+    """
+    Get pet by ID and validate user access.
+    
+    Args:
+        pet_id: Pet ID string
+        username: Username to check access for
+        require_owner: If True, only owner can access (default: False)
+    
+    Returns:
+        tuple: (pet, error_response) where error_response is None if successful,
+               or (None, (jsonify_response, status_code)) if validation fails
+    """
+    if not validate_pet_id(pet_id):
+        return None, (jsonify({"error": "Неверный формат pet_id"}), 400)
+    
+    pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
+    if not pet:
+        return None, (jsonify({"error": "Животное не найдено"}), 404)
+    
+    if require_owner:
+        if pet.get("owner") != username:
+            return None, (jsonify({"error": "Только владелец может выполнить это действие"}), 403)
+    else:
+        if not check_pet_access(pet_id, username):
+            return None, (jsonify({"error": "Нет доступа к этому животному"}), 403)
+    
+    return pet, None
 
 
 # Helper function to verify user credentials
@@ -630,8 +765,6 @@ def validate_pet_id(pet_id):
     if not pet_id or not isinstance(pet_id, str):
         return False
     try:
-        from bson import ObjectId
-        from bson.errors import InvalidId
         ObjectId(pet_id)
         return True
     except (InvalidId, TypeError, ValueError):
@@ -644,7 +777,6 @@ def check_pet_access(pet_id, username):
     if not validate_pet_id(pet_id):
         return False
     try:
-        from bson import ObjectId
         pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
         if not pet:
             return False
@@ -658,9 +790,10 @@ def check_pet_access(pet_id, username):
 @login_required
 def get_pets():
     """Get list of all pets accessible to current user."""
-    username = getattr(request, 'current_user', None)
-    if not username:
-        return jsonify({"error": "Unauthorized"}), 401
+    # Get current user
+    username, error_response = get_current_user()
+    if error_response:
+        return error_response[0], error_response[1]
     
     # Get pets where user is owner or in shared_with
     pets = list(db["pets"].find({
@@ -704,7 +837,6 @@ def create_pet():
             if 'photo_file' in request.files:
                 photo_file = request.files['photo_file']
                 if photo_file.filename:
-                    from bson import ObjectId
                     photo_file_id = str(fs.put(photo_file, filename=photo_file.filename, content_type=photo_file.content_type))
             
             # Parse birth_date if provided
@@ -780,22 +912,15 @@ def create_pet():
 def get_pet(pet_id):
     """Get pet information."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
-        if not pet:
-            return jsonify({"error": "Животное не найдено"}), 404
-        
-        # Check access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get pet and validate access
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=False)
+        if error_response:
+            return error_response[0], error_response[1]
         
         pet["_id"] = str(pet["_id"])
         if isinstance(pet.get("birth_date"), datetime):
@@ -825,22 +950,15 @@ def get_pet(pet_id):
 def update_pet(pet_id):
     """Update pet information."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
-        if not pet:
-            return jsonify({"error": "Животное не найдено"}), 404
-        
-        # Only owner can update
-        if pet.get("owner") != username:
-            return jsonify({"error": "Только владелец может изменять информацию о животном"}), 403
+        # Get pet and validate access (owner only)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
+        if error_response:
+            return error_response[0], error_response[1]
         
         # Handle form data with file upload
         if request.content_type and 'multipart/form-data' in request.content_type:
@@ -859,13 +977,11 @@ def update_pet(pet_id):
                     old_photo_id = pet.get("photo_file_id")
                     if old_photo_id:
                         try:
-                            from bson import ObjectId
                             fs.delete(ObjectId(old_photo_id))
                         except Exception as e:
                             logger.warning(f"Failed to delete old photo: photo_id={old_photo_id}, pet_id={pet_id}, error={e}")
                     
                     # Upload new photo
-                    from bson import ObjectId
                     photo_file_id = str(fs.put(photo_file, filename=photo_file.filename, content_type=photo_file.content_type))
                 elif request.form.get("remove_photo") == "true":
                     # Remove photo
@@ -1140,22 +1256,15 @@ def reset_user_password(username):
 def share_pet(pet_id):
     """Share pet with another user (owner only)."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
-        if not pet:
-            return jsonify({"error": "Животное не найдено"}), 404
-        
-        # Only owner can share
-        if pet.get("owner") != username:
-            return jsonify({"error": "Только владелец может делиться животным"}), 403
+        # Get pet and validate access (owner only)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
+        if error_response:
+            return error_response[0], error_response[1]
         
         data = request.get_json()
         share_username = data.get("username", "").strip()
@@ -1199,22 +1308,15 @@ def share_pet(pet_id):
 def unshare_pet(pet_id, share_username):
     """Remove access from user (owner only)."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
-        if not pet:
-            return jsonify({"error": "Животное не найдено"}), 404
-        
-        # Only owner can unshare
-        if pet.get("owner") != username:
-            return jsonify({"error": "Только владелец может убрать доступ"}), 403
+        # Get pet and validate access (owner only)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
+        if error_response:
+            return error_response[0], error_response[1]
         
         # Remove from shared_with
         db["pets"].update_one(
@@ -1238,14 +1340,14 @@ def unshare_pet(pet_id, share_username):
 def request_pet_access(pet_id):
     """Request access to pet."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
+        # Validate pet_id (pet existence will be checked, but access is not required for requests)
         if not validate_pet_id(pet_id):
             return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
         
         pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
         if not pet:
@@ -1285,22 +1387,15 @@ def request_pet_access(pet_id):
 def get_access_requests(pet_id):
     """Get access requests for pet (owner only)."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
-        if not pet:
-            return jsonify({"error": "Животное не найдено"}), 404
-        
-        # Only owner can see requests
-        if pet.get("owner") != username:
-            return jsonify({"error": "Только владелец может просматривать запросы"}), 403
+        # Get pet and validate access (owner only)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
+        if error_response:
+            return error_response[0], error_response[1]
         
         requests = pet.get("access_requests", [])
         for req in requests:
@@ -1322,22 +1417,15 @@ def get_access_requests(pet_id):
 def approve_access_request(pet_id, request_username):
     """Approve access request (owner only)."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
-        if not pet:
-            return jsonify({"error": "Животное не найдено"}), 404
-        
-        # Only owner can approve
-        if pet.get("owner") != username:
-            return jsonify({"error": "Только владелец может одобрять запросы"}), 403
+        # Get pet and validate access (owner only)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
+        if error_response:
+            return error_response[0], error_response[1]
         
         # Check if request exists
         access_requests = pet.get("access_requests", [])
@@ -1369,22 +1457,15 @@ def approve_access_request(pet_id, request_username):
 def reject_access_request(pet_id, request_username):
     """Reject access request (owner only)."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
-        if not pet:
-            return jsonify({"error": "Животное не найдено"}), 404
-        
-        # Only owner can reject
-        if pet.get("owner") != username:
-            return jsonify({"error": "Только владелец может отклонять запросы"}), 403
+        # Get pet and validate access (owner only)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
+        if error_response:
+            return error_response[0], error_response[1]
         
         # Remove from requests
         db["pets"].update_one(
@@ -1408,22 +1489,15 @@ def reject_access_request(pet_id, request_username):
 def delete_pet(pet_id):
     """Delete pet."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
-        if not pet:
-            return jsonify({"error": "Животное не найдено"}), 404
-        
-        # Only owner can delete
-        if pet.get("owner") != username:
-            return jsonify({"error": "Только владелец может удалить животное"}), 403
+        # Get pet and validate access (owner only)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
+        if error_response:
+            return error_response[0], error_response[1]
         
         result = db["pets"].delete_one({"_id": ObjectId(pet_id)})
         
@@ -1449,31 +1523,22 @@ def add_asthma_attack():
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
         
-        if not pet_id:
-            return jsonify({"error": "pet_id обязателен"}), 400
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Validate pet_id and check access
+        success, error_response = validate_pet_access(pet_id, username)
+        if not success:
+            return error_response[0], error_response[1]
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for asthma attack: pet_id={pet_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "asthma attack", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         attack_data = {
             "pet_id": pet_id,
@@ -1504,31 +1569,22 @@ def add_defecation():
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
         
-        if not pet_id:
-            return jsonify({"error": "pet_id обязателен"}), 400
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Validate pet_id and check access
+        success, error_response = validate_pet_access(pet_id, username)
+        if not success:
+            return error_response[0], error_response[1]
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for defecation: pet_id={pet_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "defecation", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         defecation_data = {
             "pet_id": pet_id,
@@ -1559,31 +1615,22 @@ def add_litter():
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
         
-        if not pet_id:
-            return jsonify({"error": "pet_id обязателен"}), 400
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Validate pet_id and check access
+        success, error_response = validate_pet_access(pet_id, username)
+        if not success:
+            return error_response[0], error_response[1]
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for litter change: pet_id={pet_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "litter change", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         litter_data = {
             "pet_id": pet_id,
@@ -1611,31 +1658,22 @@ def add_weight():
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
         
-        if not pet_id:
-            return jsonify({"error": "pet_id обязателен"}), 400
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Validate pet_id and check access
+        success, error_response = validate_pet_access(pet_id, username)
+        if not success:
+            return error_response[0], error_response[1]
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for weight: pet_id={pet_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "weight", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         weight_data = {
             "pet_id": pet_id,
@@ -1663,19 +1701,15 @@ def get_asthma_attacks():
     """Get asthma attacks for current pet."""
     pet_id = request.args.get("pet_id")
     
-    if not pet_id:
-        return jsonify({"error": "pet_id обязателен"}), 400
+    # Get current user
+    username, error_response = get_current_user()
+    if error_response:
+        return error_response[0], error_response[1]
     
-    if not validate_pet_id(pet_id):
-        return jsonify({"error": "Неверный формат pet_id"}), 400
-    
-    username = getattr(request, 'current_user', None)
-    if not username:
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    # Check pet access
-    if not check_pet_access(pet_id, username):
-        return jsonify({"error": "Нет доступа к этому животному"}), 403
+    # Validate pet_id and check access
+    success, error_response = validate_pet_access(pet_id, username)
+    if not success:
+        return error_response[0], error_response[1]
     
     attacks = list(db["asthma_attacks"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
     
@@ -1697,19 +1731,15 @@ def get_defecations():
     """Get defecations for current pet."""
     pet_id = request.args.get("pet_id")
     
-    if not pet_id:
-        return jsonify({"error": "pet_id обязателен"}), 400
+    # Get current user
+    username, error_response = get_current_user()
+    if error_response:
+        return error_response[0], error_response[1]
     
-    if not validate_pet_id(pet_id):
-        return jsonify({"error": "Неверный формат pet_id"}), 400
-    
-    username = getattr(request, 'current_user', None)
-    if not username:
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    # Check pet access
-    if not check_pet_access(pet_id, username):
-        return jsonify({"error": "Нет доступа к этому животному"}), 403
+    # Validate pet_id and check access
+    success, error_response = validate_pet_access(pet_id, username)
+    if not success:
+        return error_response[0], error_response[1]
     
     defecations = list(db["defecations"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
     
@@ -1727,19 +1757,15 @@ def get_litter_changes():
     """Get litter changes for current pet."""
     pet_id = request.args.get("pet_id")
     
-    if not pet_id:
-        return jsonify({"error": "pet_id обязателен"}), 400
+    # Get current user
+    username, error_response = get_current_user()
+    if error_response:
+        return error_response[0], error_response[1]
     
-    if not validate_pet_id(pet_id):
-        return jsonify({"error": "Неверный формат pet_id"}), 400
-    
-    username = getattr(request, 'current_user', None)
-    if not username:
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    # Check pet access
-    if not check_pet_access(pet_id, username):
-        return jsonify({"error": "Нет доступа к этому животному"}), 403
+    # Validate pet_id and check access
+    success, error_response = validate_pet_access(pet_id, username)
+    if not success:
+        return error_response[0], error_response[1]
     
     litter_changes = list(db["litter_changes"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
     
@@ -1757,19 +1783,15 @@ def get_weights():
     """Get weight measurements for current pet."""
     pet_id = request.args.get("pet_id")
     
-    if not pet_id:
-        return jsonify({"error": "pet_id обязателен"}), 400
+    # Get current user
+    username, error_response = get_current_user()
+    if error_response:
+        return error_response[0], error_response[1]
     
-    if not validate_pet_id(pet_id):
-        return jsonify({"error": "Неверный формат pet_id"}), 400
-    
-    username = getattr(request, 'current_user', None)
-    if not username:
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    # Check pet access
-    if not check_pet_access(pet_id, username):
-        return jsonify({"error": "Нет доступа к этому животному"}), 403
+    # Validate pet_id and check access
+    success, error_response = validate_pet_access(pet_id, username)
+    if not success:
+        return error_response[0], error_response[1]
     
     weights = list(db["weights"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
     
@@ -1786,38 +1808,24 @@ def get_weights():
 def update_asthma_attack(record_id):
     """Update asthma attack event."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["asthma_attacks"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "asthma_attacks", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         data = request.get_json()
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for asthma attack update: record_id={record_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "asthma attack update", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         attack_data = {
             "date_time": event_dt,
@@ -1851,24 +1859,15 @@ def update_asthma_attack(record_id):
 def delete_asthma_attack(record_id):
     """Delete asthma attack event."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["asthma_attacks"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "asthma_attacks", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         result = db["asthma_attacks"].delete_one(
             {"_id": ObjectId(record_id)}
@@ -1893,38 +1892,24 @@ def delete_asthma_attack(record_id):
 def update_defecation(record_id):
     """Update defecation event."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["defecations"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "defecations", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         data = request.get_json()
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for defecation update: record_id={record_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "defecation update", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         defecation_data = {
             "date_time": event_dt,
@@ -1958,24 +1943,15 @@ def update_defecation(record_id):
 def delete_defecation(record_id):
     """Delete defecation event."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["defecations"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "defecations", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         result = db["defecations"].delete_one(
             {"_id": ObjectId(record_id)}
@@ -2000,38 +1976,24 @@ def delete_defecation(record_id):
 def update_litter(record_id):
     """Update litter change event."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["litter_changes"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "litter_changes", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         data = request.get_json()
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for litter change update: record_id={record_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "litter change update", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         litter_data = {
             "date_time": event_dt,
@@ -2062,24 +2024,15 @@ def update_litter(record_id):
 def delete_litter(record_id):
     """Delete litter change event."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["litter_changes"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "litter_changes", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         result = db["litter_changes"].delete_one(
             {"_id": ObjectId(record_id)}
@@ -2104,38 +2057,24 @@ def delete_litter(record_id):
 def update_weight(record_id):
     """Update weight measurement."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["weights"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "weights", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         data = request.get_json()
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for weight update: record_id={record_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "weight update", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         weight_data = {
             "date_time": event_dt,
@@ -2168,24 +2107,15 @@ def update_weight(record_id):
 def delete_weight(record_id):
     """Delete weight measurement."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["weights"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "weights", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         result = db["weights"].delete_one(
             {"_id": ObjectId(record_id)}
@@ -2213,31 +2143,22 @@ def add_feeding():
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
         
-        if not pet_id:
-            return jsonify({"error": "pet_id обязателен"}), 400
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Validate pet_id and check access
+        success, error_response = validate_pet_access(pet_id, username)
+        if not success:
+            return error_response[0], error_response[1]
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for feeding: pet_id={pet_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "feeding", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         feeding_data = {
             "pet_id": pet_id,
@@ -2264,19 +2185,15 @@ def get_feedings():
     """Get feedings for current pet."""
     pet_id = request.args.get("pet_id")
     
-    if not pet_id:
-        return jsonify({"error": "pet_id обязателен"}), 400
+    # Get current user
+    username, error_response = get_current_user()
+    if error_response:
+        return error_response[0], error_response[1]
     
-    if not validate_pet_id(pet_id):
-        return jsonify({"error": "Неверный формат pet_id"}), 400
-    
-    username = getattr(request, 'current_user', None)
-    if not username:
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    # Check pet access
-    if not check_pet_access(pet_id, username):
-        return jsonify({"error": "Нет доступа к этому животному"}), 403
+    # Validate pet_id and check access
+    success, error_response = validate_pet_access(pet_id, username)
+    if not success:
+        return error_response[0], error_response[1]
     
     feedings = list(db["feedings"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
     
@@ -2293,38 +2210,24 @@ def get_feedings():
 def update_feeding(record_id):
     """Update feeding event."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["feedings"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "feedings", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         data = request.get_json()
         
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        if date_str and time_str:
-            try:
-                event_dt = parse_datetime(date_str, time_str, allow_future=True, max_future_days=1)
-            except ValueError as e:
-                logger.warning(f"Invalid datetime format for feeding: pet_id={pet_id}, user={username}, error={e}")
-                return jsonify({"error": f"Неверный формат даты/времени: {str(e)}"}), 400
-        else:
-            event_dt = datetime.now()
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "feeding update", pet_id, username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         feeding_data = {
             "date_time": event_dt,
@@ -2356,24 +2259,15 @@ def update_feeding(record_id):
 def delete_feeding(record_id):
     """Delete feeding event."""
     try:
-        from bson import ObjectId
+        # Get current user
+        username, error_response = get_current_user()
+        if error_response:
+            return error_response[0], error_response[1]
         
-        username = getattr(request, 'current_user', None)
-        if not username:
-            return jsonify({"error": "Unauthorized"}), 401
-        
-        # Get existing record to check pet_id
-        existing = db["feedings"].find_one({"_id": ObjectId(record_id)})
-        if not existing:
-            return jsonify({"error": "Record not found"}), 404
-        
-        pet_id = existing.get("pet_id")
-        if not pet_id:
-            return jsonify({"error": "Invalid record"}), 400
-        
-        # Check pet access
-        if not check_pet_access(pet_id, username):
-            return jsonify({"error": "Нет доступа к этому животному"}), 403
+        # Get record and validate access
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "feedings", username)
+        if error_response:
+            return error_response[0], error_response[1]
         
         result = db["feedings"].delete_one(
             {"_id": ObjectId(record_id)}
@@ -2591,8 +2485,6 @@ def export_data(export_type, format_type):
 def get_pet_photo(pet_id):
     """Get pet photo file."""
     try:
-        from bson import ObjectId
-        
         if not validate_pet_id(pet_id):
             return jsonify({"error": "Неверный формат pet_id"}), 400
         
