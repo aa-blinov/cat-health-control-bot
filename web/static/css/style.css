@@ -1280,6 +1280,13 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+.alert-info {
+    background-color: var(--card-background);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-md);
+}
+
 .alert-container {
     position: fixed;
     top: 80px;

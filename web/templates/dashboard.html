@@ -1104,7 +1104,17 @@ function showHistoryTab(type) {
     }
     
     fetch(endpoint, { credentials: 'include' })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                // If response is not ok, try to parse error message
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Ошибка загрузки данных');
+                }).catch(() => {
+                    throw new Error('Ошибка загрузки данных');
+                });
+            }
+            return response.json();
+        })
         .then(data => {
             let items;
             if (type === 'feeding') {
@@ -2227,6 +2237,8 @@ async function editRecord(type, recordId) {
         endpoint = `/api/asthma?pet_id=${petId}`;
     } else if (type === 'defecation') {
         endpoint = `/api/defecation?pet_id=${petId}`;
+    } else if (type === 'litter') {
+        endpoint = `/api/litter?pet_id=${petId}`;
     } else {
         endpoint = `/api/weight?pet_id=${petId}`;
     }
@@ -2251,7 +2263,10 @@ async function editRecord(type, recordId) {
         const record = items.find(item => item._id === recordId);
         
         if (!record) {
-            showAlert('error', 'Запись не найдена');
+            // Record was deleted by another user (race condition)
+            showAlert('info', 'Запись была удалена другим пользователем. История обновлена.');
+            // Refresh history to remove the deleted record from UI
+            showHistoryTab(type);
             return;
         }
         
@@ -2327,6 +2342,23 @@ async function deleteRecord(type, recordId) {
         const result = await response.json();
         if (response.ok) {
             showAlert('success', result.message || 'Запись удалена');
+            // Reload history
+            const currentTab = document.querySelector('.tab-btn.active');
+            if (currentTab.textContent.includes('Дневные порции')) {
+                showHistoryTab('feeding');
+            } else if (currentTab.textContent.includes('астмы')) {
+                showHistoryTab('asthma');
+            } else if (currentTab.textContent.includes('Дефекации')) {
+                showHistoryTab('defecation');
+            } else if (currentTab.textContent.includes('Смена лотка')) {
+                showHistoryTab('litter');
+            } else if (currentTab.textContent.includes('Вес')) {
+                showHistoryTab('weight');
+            }
+        } else if (response.status === 404) {
+            // Record already deleted (race condition: another user deleted it)
+            // Treat as success and refresh history
+            showAlert('info', 'Запись уже была удалена');
             // Reload history
             const currentTab = document.querySelector('.tab-btn.active');
             if (currentTab.textContent.includes('Дневные порции')) {
