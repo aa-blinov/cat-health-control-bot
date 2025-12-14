@@ -24,6 +24,7 @@ class TestDataExport:
                     "reason": "Stress",
                     "inhalation": True,
                     "comment": "Attack 1",
+                    "username": "testuser",
                 },
                 {
                     "pet_id": str(test_pet["_id"]),
@@ -32,6 +33,7 @@ class TestDataExport:
                     "reason": "Exercise",
                     "inhalation": False,
                     "comment": "Attack 2",
+                    "username": "testuser",
                 },
             ]
         )
@@ -51,6 +53,7 @@ class TestDataExport:
         rows = list(reader)
         assert len(rows) == 3  # Header + 2 data rows
         assert "Дата и время" in rows[0]
+        assert "Пользователь" in rows[0]
 
     def test_export_defecation_tsv(self, client, mock_db, regular_user_token, test_pet):
         """Test exporting defecations as TSV."""
@@ -64,6 +67,7 @@ class TestDataExport:
                 "color": "Brown",
                 "food": "Dry food",
                 "comment": "Test",
+                "username": "testuser",
             }
         )
 
@@ -74,6 +78,9 @@ class TestDataExport:
 
         assert response.status_code == 200
         assert response.content_type == "text/tab-separated-values"
+        # Verify username column is present
+        content = response.data.decode("utf-8")
+        assert "Пользователь" in content
 
     def test_export_weight_html(self, client, mock_db, regular_user_token, test_pet):
         """Test exporting weights as HTML."""
@@ -86,6 +93,7 @@ class TestDataExport:
                 "weight": "4.5",
                 "food": "Dry food",
                 "comment": "Test",
+                "username": "testuser",
             }
         )
 
@@ -98,13 +106,19 @@ class TestDataExport:
         assert response.content_type == "text/html"
         assert b"<html" in response.data
         assert "Вес".encode("utf-8") in response.data
+        assert "Пользователь".encode("utf-8") in response.data
 
     def test_export_litter_markdown(self, client, mock_db, regular_user_token, test_pet):
         """Test exporting litter changes as Markdown."""
         from web.app import db
 
         db["litter_changes"].insert_one(
-            {"pet_id": str(test_pet["_id"]), "date_time": datetime(2024, 1, 15, 14, 30), "comment": "Test change"}
+            {
+                "pet_id": str(test_pet["_id"]),
+                "date_time": datetime(2024, 1, 15, 14, 30),
+                "comment": "Test change",
+                "username": "testuser",
+            }
         )
 
         response = client.get(
@@ -115,6 +129,7 @@ class TestDataExport:
         assert response.content_type == "text/markdown"
         assert b"# " in response.data
         assert "Смена лотка".encode("utf-8") in response.data
+        assert "Пользователь".encode("utf-8") in response.data
 
     def test_export_feeding_csv(self, client, mock_db, regular_user_token, test_pet):
         """Test exporting feedings as CSV."""
@@ -126,6 +141,7 @@ class TestDataExport:
                 "date_time": datetime(2024, 1, 15, 8, 0),
                 "food_weight": "100",
                 "comment": "Morning feeding",
+                "username": "testuser",
             }
         )
 
@@ -169,6 +185,7 @@ class TestDataExport:
                 "reason": "Stress",
                 "inhalation": True,
                 "comment": "Test",
+                "username": "testuser",
             }
         )
 
@@ -215,6 +232,7 @@ class TestDataExport:
                 "reason": "Стресс",
                 "inhalation": True,
                 "comment": "Тест",
+                "username": "testuser",
             }
         )
 

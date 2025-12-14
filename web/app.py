@@ -1384,6 +1384,7 @@ def add_asthma_attack():
             "reason": data.get("reason", ""),
             "inhalation": data.get("inhalation", False),
             "comment": data.get("comment", ""),
+            "username": username,
         }
 
         db["asthma_attacks"].insert_one(attack_data)
@@ -1430,6 +1431,7 @@ def add_defecation():
             "color": data.get("color", "Коричневый"),
             "food": data.get("food", ""),
             "comment": data.get("comment", ""),
+            "username": username,
         }
 
         db["defecations"].insert_one(defecation_data)
@@ -1469,7 +1471,12 @@ def add_litter():
         if error_response:
             return error_response[0], error_response[1]
 
-        litter_data = {"pet_id": pet_id, "date_time": event_dt, "comment": data.get("comment", "")}
+        litter_data = {
+            "pet_id": pet_id,
+            "date_time": event_dt,
+            "comment": data.get("comment", ""),
+            "username": username,
+        }
 
         db["litter_changes"].insert_one(litter_data)
         logger.info(f"Litter change recorded: pet_id={pet_id}, user={username}")
@@ -1514,6 +1521,7 @@ def add_weight():
             "weight": data.get("weight", ""),
             "food": data.get("food", ""),
             "comment": data.get("comment", ""),
+            "username": username,
         }
 
         db["weights"].insert_one(weight_data)
@@ -1987,6 +1995,7 @@ def add_feeding():
             "date_time": event_dt,
             "food_weight": data.get("food_weight", ""),
             "comment": data.get("comment", ""),
+            "username": username,
         }
 
         db["feedings"].insert_one(feeding_data)
@@ -2130,6 +2139,7 @@ def export_data(export_type, format_type):
             title = "Дневные порции корма"
             fields = [
                 ("date_time", "Дата и время"),
+                ("username", "Пользователь"),
                 ("food_weight", "Вес корма (г)"),
                 ("comment", "Комментарий"),
             ]
@@ -2138,6 +2148,7 @@ def export_data(export_type, format_type):
             title = "Приступы астмы"
             fields = [
                 ("date_time", "Дата и время"),
+                ("username", "Пользователь"),
                 ("duration", "Длительность"),
                 ("reason", "Причина"),
                 ("inhalation", "Ингаляция"),
@@ -2148,6 +2159,7 @@ def export_data(export_type, format_type):
             title = "Дефекации"
             fields = [
                 ("date_time", "Дата и время"),
+                ("username", "Пользователь"),
                 ("stool_type", "Тип стула"),
                 ("color", "Цвет стула"),
                 ("food", "Корм"),
@@ -2158,6 +2170,7 @@ def export_data(export_type, format_type):
             title = "Смена лотка"
             fields = [
                 ("date_time", "Дата и время"),
+                ("username", "Пользователь"),
                 ("comment", "Комментарий"),
             ]
         elif export_type == "weight":
@@ -2165,6 +2178,7 @@ def export_data(export_type, format_type):
             title = "Вес"
             fields = [
                 ("date_time", "Дата и время"),
+                ("username", "Пользователь"),
                 ("weight", "Вес (кг)"),
                 ("food", "Корм"),
                 ("comment", "Комментарий"),
@@ -2183,6 +2197,10 @@ def export_data(export_type, format_type):
                 r["date_time"] = r["date_time"].strftime("%Y-%m-%d %H:%M")
             else:
                 r["date_time"] = str(r.get("date_time", ""))
+
+            # Handle missing username for old records
+            if not r.get("username"):
+                r["username"] = "-"
 
             if r.get("comment", "").strip() in ("", "Пропустить"):
                 r["comment"] = "-"

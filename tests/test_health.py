@@ -34,6 +34,7 @@ class TestHealthTracking:
         attacks = list(db["asthma_attacks"].find({"pet_id": str(test_pet["_id"])}))
         assert len(attacks) == 1
         assert attacks[0]["duration"] == "5 minutes"
+        assert attacks[0]["username"] == "testuser"
 
     def test_add_asthma_attack_no_access(self, client, mock_db, regular_user_token, admin_pet):
         """Test adding asthma attack without pet access."""
@@ -196,6 +197,7 @@ class TestHealthTracking:
 
         defecations = list(db["defecations"].find({"pet_id": str(test_pet["_id"])}))
         assert len(defecations) == 1
+        assert defecations[0]["username"] == "testuser"
 
     def test_get_defecations_success(self, client, mock_db, regular_user_token, test_pet):
         """Test getting defecation records."""
@@ -298,6 +300,7 @@ class TestHealthTracking:
 
         changes = list(db["litter_changes"].find({"pet_id": str(test_pet["_id"])}))
         assert len(changes) == 1
+        assert changes[0]["username"] == "testuser"
 
     def test_get_litter_changes_success(self, client, mock_db, regular_user_token, test_pet):
         """Test getting litter change records."""
@@ -374,6 +377,7 @@ class TestHealthTracking:
         weights = list(db["weights"].find({"pet_id": str(test_pet["_id"])}))
         assert len(weights) == 1
         assert weights[0]["weight"] == "4.5"
+        assert weights[0]["username"] == "testuser"
 
     def test_get_weights_success(self, client, mock_db, regular_user_token, test_pet):
         """Test getting weight measurements."""
@@ -475,6 +479,7 @@ class TestHealthTracking:
         feedings = list(db["feedings"].find({"pet_id": str(test_pet["_id"])}))
         assert len(feedings) == 1
         assert feedings[0]["food_weight"] == "100"
+        assert feedings[0]["username"] == "testuser"
 
     def test_get_feedings_success(self, client, mock_db, regular_user_token, test_pet):
         """Test getting feeding records."""

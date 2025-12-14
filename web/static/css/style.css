@@ -1418,9 +1418,21 @@ body {
 .history-date {
     font-weight: 500;
     color: var(--text-primary);
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     font-size: 1rem;
     letter-spacing: -0.011em;
+}
+
+.history-user {
+    color: var(--text-secondary);
+    font-size: 0.88235rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.47059;
+}
+
+.history-user strong {
+    color: var(--text-primary);
+    font-weight: 500;
 }
 
 .history-details {

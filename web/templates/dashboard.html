@@ -1128,6 +1128,8 @@ function showHistoryTab(type) {
             items.forEach(item => {
                 html += `<div class="history-item history-item-${type}" data-id="${item._id}">`;
                 html += `<div class="history-date">${item.date_time}</div>`;
+                const username = item.username || '-';
+                html += `<div class="history-user"><strong>Пользователь:</strong> ${username}</div>`;
                 if (type === 'feeding') {
                     html += `<div class="history-details">`;
                     html += `<span><strong>Вес корма:</strong> ${item.food_weight} г</span>`;
