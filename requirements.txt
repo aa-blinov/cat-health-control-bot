@@ -3,3 +3,6 @@ flask==3.0.0
 werkzeug==3.0.1
 bcrypt==4.1.2
 pyjwt==2.8.0
+pytest==8.0.0
+pytest-cov==4.1.0
+mongomock==4.1.2
