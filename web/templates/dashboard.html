@@ -735,7 +735,7 @@ async function renderPetsList() {
 function selectPet(petId, petName) {
     setSelectedPet(petId, petName);
     
-    // Check if we're in a form screen
+    // Check if we're in a form screen or history screen
     const activeScreen = document.querySelector('.screen.active');
     const isInForm = activeScreen && (
         activeScreen.id === 'asthma-form' || 
@@ -743,22 +743,23 @@ function selectPet(petId, petName) {
         activeScreen.id === 'litter-form' ||
         activeScreen.id === 'weight-form'
     );
+    const isInHistory = activeScreen && activeScreen.id === 'history';
     
     if (isInForm) {
         // Just update the pet info badge, stay in the form
         updatePetInfoBadges();
-    } else {
-        // Return to main menu or reload history
-        showScreen('main-menu');
-        if (activeScreen && activeScreen.id === 'history') {
-            const currentTab = document.querySelector('.tab-btn.active');
-            if (currentTab) {
-                const tabType = currentTab.getAttribute('data-tab');
-                if (tabType) {
-                    showHistoryTab(tabType);
-                }
+    } else if (isInHistory) {
+        // Stay in history and reload current tab
+        const currentTab = document.querySelector('.tab-btn.active');
+        if (currentTab) {
+            const tabType = currentTab.getAttribute('data-tab');
+            if (tabType) {
+                showHistoryTab(tabType);
             }
         }
+    } else {
+        // Return to main menu
+        showScreen('main-menu');
     }
 }
 
