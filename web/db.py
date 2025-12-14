@@ -31,4 +31,4 @@ client: MongoClient = MongoClient(mongo_uri)
 db = client[MONGO_DB]
 
 # Export mongo_uri for use in Flask-Limiter
-__all__ = ['db', 'client', 'mongo_uri']
+__all__ = ["db", "client", "mongo_uri"]

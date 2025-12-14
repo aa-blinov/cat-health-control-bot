@@ -27,8 +27,7 @@ _mock_client = MongoClient()
 _mock_db = _mock_client["test_db"]
 # Patch db and GridFS before importing app so ensure_default_admin uses mock_db
 with patch("web.db.db", _mock_db), patch("web.db.client", _mock_client), patch("gridfs.GridFS", MagicMock):
-    from web.app import app, create_access_token, create_refresh_token, verify_token
-    from web.db import db
+    from web.app import app, create_access_token
 
 
 @pytest.fixture(scope="function")
@@ -36,7 +35,7 @@ def mock_db():
     """Create a mock MongoDB database for testing."""
     mock_client = MongoClient()
     mock_db = mock_client["test_db"]
-    
+
     # Patch the db module and GridFS
     with patch("web.db.db", mock_db), patch("web.app.db", mock_db), patch("web.app.fs", MagicMock()):
         # Clear any existing data
@@ -48,21 +47,23 @@ def mock_db():
         mock_db["litter_changes"].delete_many({})
         mock_db["weights"].delete_many({})
         mock_db["feedings"].delete_many({})
-        
+
         # Create default admin user
         admin_password_hash = os.environ["ADMIN_PASSWORD_HASH"]
-        mock_db["users"].insert_one({
-            "username": "admin",
-            "password_hash": admin_password_hash,
-            "full_name": "Administrator",
-            "email": "",
-            "created_at": datetime.utcnow(),
-            "created_by": "system",
-            "is_active": True
-        })
-        
+        mock_db["users"].insert_one(
+            {
+                "username": "admin",
+                "password_hash": admin_password_hash,
+                "full_name": "Administrator",
+                "email": "",
+                "created_at": datetime.utcnow(),
+                "created_by": "system",
+                "is_active": True,
+            }
+        )
+
         yield mock_db
-        
+
         # Cleanup
         mock_client.drop_database("test_db")
 
@@ -72,7 +73,7 @@ def client(mock_db):
     """Create a Flask test client."""
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
-    
+
     with app.test_client() as client:
         yield client
 
@@ -88,23 +89,18 @@ def admin_refresh_token(mock_db):
     """Create a valid refresh token for admin user."""
     # Need to use mock_db context, so create token manually
     from web.app import JWT_SECRET_KEY, JWT_ALGORITHM, REFRESH_TOKEN_EXPIRE_DAYS
+
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {
-        "username": "admin",
-        "exp": expire,
-        "type": "refresh"
-    }
+    payload = {"username": "admin", "exp": expire, "type": "refresh"}
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
-    
+
     # Store in database
     from web.app import db
-    db["refresh_tokens"].insert_one({
-        "token": token,
-        "username": "admin",
-        "created_at": datetime.utcnow(),
-        "expires_at": expire
-    })
-    
+
+    db["refresh_tokens"].insert_one(
+        {"token": token, "username": "admin", "created_at": datetime.utcnow(), "expires_at": expire}
+    )
+
     return token
 
 
@@ -119,7 +115,7 @@ def regular_user(mock_db):
         "email": "test@example.com",
         "created_at": datetime.utcnow(),
         "created_by": "admin",
-        "is_active": True
+        "is_active": True,
     }
     mock_db["users"].insert_one(user_data)
     return user_data
@@ -143,7 +139,7 @@ def test_pet(mock_db, regular_user):
         "shared_with": [],
         "access_requests": [],
         "created_at": datetime.utcnow(),
-        "created_by": regular_user["username"]
+        "created_by": regular_user["username"],
     }
     result = mock_db["pets"].insert_one(pet_data)
     pet_data["_id"] = result.inserted_id
@@ -162,7 +158,7 @@ def admin_pet(mock_db):
         "shared_with": [],
         "access_requests": [],
         "created_at": datetime.utcnow(),
-        "created_by": "admin"
+        "created_by": "admin",
     }
     result = mock_db["pets"].insert_one(pet_data)
     pet_data["_id"] = result.inserted_id
@@ -178,8 +174,4 @@ def auth_headers(admin_token):
 @pytest.fixture
 def auth_cookies(admin_token, admin_refresh_token):
     """Create cookies with access and refresh tokens."""
-    return {
-        "access_token": admin_token,
-        "refresh_token": admin_refresh_token
-    }
-
+    return {"access_token": admin_token, "refresh_token": admin_refresh_token}

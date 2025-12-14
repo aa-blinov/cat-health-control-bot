@@ -21,42 +21,38 @@ from gridfs import GridFS
 from bson import ObjectId
 from bson.errors import InvalidId
 
+
 # Configure logging
 def setup_logging(app):
     """Configure centralized logging for the application."""
     # Get log level from environment or default to INFO
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    
+
     # Configure root logger
     logging.basicConfig(
         level=getattr(logging, log_level, logging.INFO),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
-    
+
     # Configure Flask app logger
     app.logger.setLevel(getattr(logging, log_level, logging.INFO))
-    
+
     # Suppress noisy loggers
-    logging.getLogger('werkzeug').setLevel(logging.WARNING)
-    
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+
     return app.logger
+
 
 # Initialize GridFS for file storage
 fs = GridFS(db)
 
 # Configure Flask app with proper template and static folders
-app = Flask(
-    __name__,
-    template_folder='templates',
-    static_folder='static'
-)
+app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-in-production")
-app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
-app.config['JSON_AS_ASCII'] = False
+app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False
+app.config["JSON_AS_ASCII"] = False
 
 # Setup logging
 logger = setup_logging(app)
@@ -69,19 +65,21 @@ limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"],
     storage_uri=storage_uri,
-    strategy="fixed-window"
+    strategy="fixed-window",
 )
+
 
 # Error handler for rate limit exceeded
 @app.errorhandler(RateLimitExceeded)
 def handle_rate_limit_exceeded(e):
     """Handle rate limit exceeded errors."""
     # Check if request is JSON (API) or HTML (web page)
-    if request.is_json or request.path.startswith('/api/'):
+    if request.is_json or request.path.startswith("/api/"):
         return jsonify({"error": str(e.description)}), 429
     else:
         # For HTML requests, render login page with error
         return render_template("login.html", error=str(e.description)), 429
+
 
 # JWT configuration
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", app.secret_key)
@@ -122,23 +120,23 @@ def handle_error(error, context="", status_code=500):
 def parse_datetime(date_str, time_str=None, allow_future=True, max_future_days=1, max_past_years=50):
     """
     Safely parse datetime from date and optional time strings.
-    
+
     Args:
         date_str: Date string in format "YYYY-MM-DD"
         time_str: Optional time string in format "HH:MM"
         allow_future: Whether to allow future dates (default: True)
         max_future_days: Maximum days in the future allowed (default: 1)
         max_past_years: Maximum years in the past allowed (default: 50)
-    
+
     Returns:
         datetime object if parsing and validation succeed
-    
+
     Raises:
         ValueError: If date format is invalid or date is out of allowed range
     """
     if not date_str:
         raise ValueError("Date string is required")
-    
+
     try:
         if time_str:
             # Parse date and time
@@ -146,23 +144,23 @@ def parse_datetime(date_str, time_str=None, allow_future=True, max_future_days=1
         else:
             # Parse date only
             dt = datetime.strptime(date_str, "%Y-%m-%d")
-    except ValueError as e:
+    except ValueError:
         if time_str:
             raise ValueError(f"Invalid date/time format. Expected YYYY-MM-DD HH:MM, got '{date_str} {time_str}'")
         else:
             raise ValueError(f"Invalid date format. Expected YYYY-MM-DD, got '{date_str}'")
-    
+
     # Validate date range
     now = datetime.now()
     max_future = now + timedelta(days=max_future_days) if allow_future else now
     max_past = now - timedelta(days=max_past_years * 365)
-    
+
     if dt > max_future:
         raise ValueError(f"Date cannot be more than {max_future_days} day(s) in the future")
-    
+
     if dt < max_past:
         raise ValueError(f"Date cannot be more than {max_past_years} years in the past")
-    
+
     return dt
 
 
@@ -170,37 +168,39 @@ def parse_datetime(date_str, time_str=None, allow_future=True, max_future_days=1
 def parse_date(date_str, allow_future=False, max_past_years=50):
     """
     Safely parse date string (for birth_date).
-    
+
     Args:
         date_str: Date string in format "YYYY-MM-DD"
         allow_future: Whether to allow future dates (default: False for birth dates)
         max_past_years: Maximum years in the past allowed (default: 50)
-    
+
     Returns:
         datetime object if parsing and validation succeed, None if date_str is empty
-    
+
     Raises:
         ValueError: If date format is invalid or date is out of allowed range
     """
     if not date_str:
         return None
-    
-    return parse_datetime(date_str, time_str=None, allow_future=allow_future, max_future_days=0, max_past_years=max_past_years)
+
+    return parse_datetime(
+        date_str, time_str=None, allow_future=allow_future, max_future_days=0, max_past_years=max_past_years
+    )
 
 
 # Helper function to safely parse event datetime with error handling
 def parse_event_datetime(date_str, time_str, context=""):
     """
     Safely parse event datetime with proper error handling.
-    
+
     Args:
         date_str: Date string in format "YYYY-MM-DD"
         time_str: Time string in format "HH:MM"
         context: Context string for error messages
-    
+
     Returns:
         datetime object if parsing succeeds, None if both date_str and time_str are empty
-    
+
     Raises:
         ValueError: If date format is invalid or date is out of allowed range
     """
@@ -217,12 +217,12 @@ def parse_event_datetime(date_str, time_str, context=""):
 def get_current_user():
     """
     Get current authenticated user.
-    
+
     Returns:
         tuple: (username, error_response) where error_response is None if authorized,
                or (None, (jsonify_response, status_code)) if not authorized
     """
-    username = getattr(request, 'current_user', None)
+    username = getattr(request, "current_user", None)
     if not username:
         return None, (jsonify({"error": "Unauthorized"}), 401)
     return username, None
@@ -232,24 +232,24 @@ def get_current_user():
 def validate_pet_access(pet_id, username):
     """
     Validate pet_id format and check if user has access to the pet.
-    
+
     Args:
         pet_id: Pet ID string
         username: Username to check access for
-    
+
     Returns:
         tuple: (success, error_response) where success is True if access granted,
                or (False, (jsonify_response, status_code)) if validation/access fails
     """
     if not pet_id:
         return False, (jsonify({"error": "pet_id обязателен"}), 400)
-    
+
     if not validate_pet_id(pet_id):
         return False, (jsonify({"error": "Неверный формат pet_id"}), 400)
-    
+
     if not check_pet_access(pet_id, username):
         return False, (jsonify({"error": "Нет доступа к этому животному"}), 403)
-    
+
     return True, None
 
 
@@ -257,14 +257,14 @@ def validate_pet_access(pet_id, username):
 def parse_event_datetime_safe(date_str, time_str, context="", pet_id=None, username=None):
     """
     Safely parse event datetime with error handling and logging.
-    
+
     Args:
         date_str: Date string in format "YYYY-MM-DD"
         time_str: Time string in format "HH:MM"
         context: Context string for error messages (e.g., "asthma attack")
         pet_id: Optional pet_id for logging
         username: Optional username for logging
-    
+
     Returns:
         tuple: (datetime_object, error_response) where error_response is None if parsing succeeds,
                or (None, (jsonify_response, status_code)) if parsing fails
@@ -285,12 +285,12 @@ def parse_event_datetime_safe(date_str, time_str, context="", pet_id=None, usern
 def get_record_and_validate_access(record_id, collection_name, username):
     """
     Get record by ID and validate user access.
-    
+
     Args:
         record_id: Record ID string (ObjectId)
         collection_name: Name of the collection (e.g., "asthma_attacks")
         username: Username to check access for
-    
+
     Returns:
         tuple: (record, pet_id, error_response) where error_response is None if successful,
                or (None, None, (jsonify_response, status_code)) if validation fails
@@ -299,19 +299,19 @@ def get_record_and_validate_access(record_id, collection_name, username):
         record_id_obj = ObjectId(record_id)
     except (InvalidId, TypeError, ValueError):
         return None, None, (jsonify({"error": "Invalid record_id format"}), 400)
-    
+
     existing = db[collection_name].find_one({"_id": record_id_obj})
     if not existing:
         return None, None, (jsonify({"error": "Record not found"}), 404)
-    
+
     pet_id = existing.get("pet_id")
     if not pet_id:
         return None, None, (jsonify({"error": "Invalid record"}), 400)
-    
+
     # Check pet access
     if not check_pet_access(pet_id, username):
         return None, None, (jsonify({"error": "Нет доступа к этому животному"}), 403)
-    
+
     return existing, pet_id, None
 
 
@@ -319,30 +319,30 @@ def get_record_and_validate_access(record_id, collection_name, username):
 def get_pet_and_validate(pet_id, username, require_owner=False):
     """
     Get pet by ID and validate user access.
-    
+
     Args:
         pet_id: Pet ID string
         username: Username to check access for
         require_owner: If True, only owner can access (default: False)
-    
+
     Returns:
         tuple: (pet, error_response) where error_response is None if successful,
                or (None, (jsonify_response, status_code)) if validation fails
     """
     if not validate_pet_id(pet_id):
         return None, (jsonify({"error": "Неверный формат pet_id"}), 400)
-    
+
     pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
     if not pet:
         return None, (jsonify({"error": "Животное не найдено"}), 404)
-    
+
     if require_owner:
         if pet.get("owner") != username:
             return None, (jsonify({"error": "Только владелец может выполнить это действие"}), 403)
     else:
         if not check_pet_access(pet_id, username):
             return None, (jsonify({"error": "Нет доступа к этому животному"}), 403)
-    
+
     return pet, None
 
 
@@ -356,15 +356,16 @@ def verify_user_credentials(username: str, password: str) -> bool:
             return bcrypt.checkpw(password.encode(), user["password_hash"].encode())
         except (ValueError, TypeError, KeyError):
             return False
-    
+
     # Fallback to admin credentials for backward compatibility
     if username == ADMIN_USERNAME:
         try:
             return bcrypt.checkpw(password.encode(), ADMIN_PASSWORD_HASH.encode())
         except (ValueError, TypeError):
             return False
-    
+
     return False
+
 
 # Helper function to ensure default admin user exists
 def ensure_default_admin():
@@ -372,15 +373,18 @@ def ensure_default_admin():
     admin_user = db["users"].find_one({"username": ADMIN_USERNAME})
     if not admin_user:
         # Create default admin user
-        db["users"].insert_one({
-            "username": ADMIN_USERNAME,
-            "password_hash": ADMIN_PASSWORD_HASH,
-            "full_name": "Administrator",
-            "email": "",
-            "created_at": datetime.utcnow(),
-            "created_by": "system",
-            "is_active": True
-        })
+        db["users"].insert_one(
+            {
+                "username": ADMIN_USERNAME,
+                "password_hash": ADMIN_PASSWORD_HASH,
+                "full_name": "Administrator",
+                "email": "",
+                "created_at": datetime.utcnow(),
+                "created_by": "system",
+                "is_active": True,
+            }
+        )
+
 
 # Initialize default admin on startup
 ensure_default_admin()
@@ -389,32 +393,21 @@ ensure_default_admin()
 def create_access_token(username: str) -> str:
     """Create JWT access token."""
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {
-        "username": username,
-        "exp": expire,
-        "type": "access"
-    }
+    payload = {"username": username, "exp": expire, "type": "access"}
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
 def create_refresh_token(username: str) -> str:
     """Create JWT refresh token and store it in database."""
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {
-        "username": username,
-        "exp": expire,
-        "type": "refresh"
-    }
+    payload = {"username": username, "exp": expire, "type": "refresh"}
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
-    
+
     # Store refresh token in database
-    db["refresh_tokens"].insert_one({
-        "token": token,
-        "username": username,
-        "created_at": datetime.utcnow(),
-        "expires_at": expire
-    })
-    
+    db["refresh_tokens"].insert_one(
+        {"token": token, "username": username, "created_at": datetime.utcnow(), "expires_at": expire}
+    )
+
     return token
 
 
@@ -437,7 +430,7 @@ def get_token_from_request():
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         return auth_header[7:]
-    
+
     # Try cookie
     return request.cookies.get("access_token")
 
@@ -447,17 +440,17 @@ def try_refresh_access_token():
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         return None
-    
+
     # Verify refresh token
     payload = verify_token(refresh_token, "refresh")
     if not payload:
         return None
-    
+
     # Check if token exists in database
     token_record = db["refresh_tokens"].find_one({"token": refresh_token})
     if not token_record:
         return None
-    
+
     username = payload.get("username")
     return create_access_token(username)
 
@@ -470,10 +463,10 @@ def login_required(f):
         token = get_token_from_request()
         payload = None
         new_token = None
-        
+
         if token:
             payload = verify_token(token, "access")
-        
+
         if not payload:
             # Token missing or invalid, try to refresh
             new_token = try_refresh_access_token()
@@ -481,37 +474,37 @@ def login_required(f):
                 payload = verify_token(new_token, "access")
                 if not payload:
                     new_token = None
-        
+
         if not payload:
             # No valid token available
-            if request.path.startswith('/api/'):
+            if request.path.startswith("/api/"):
                 return jsonify({"error": "Unauthorized", "message": "Token required"}), 401
             return redirect(url_for("login"))
-        
+
         # We have valid token (either original or refreshed)
         request.current_user = payload.get("username")
-        
+
         # Execute the function
         response = f(*args, **kwargs)
-        
+
         # If we refreshed the token, set it in the response cookie
         if new_token:
             # Wrap response if needed to set cookie
             if isinstance(response, tuple):
                 response_obj, status_code = response[0], response[1] if len(response) > 1 else 200
                 response = make_response(response_obj, status_code)
-            elif not hasattr(response, 'set_cookie'):
+            elif not hasattr(response, "set_cookie"):
                 response = make_response(response)
-            
+
             response.set_cookie(
                 "access_token",
                 new_token,
                 max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                 httponly=True,
                 secure=False,
-                samesite="Lax"
+                samesite="Lax",
             )
-        
+
         return response
 
     return decorated_function
@@ -525,7 +518,7 @@ def index():
         payload = verify_token(token, "access")
         if payload:
             return redirect(url_for("dashboard"))
-    
+
     # Try to refresh using refresh token
     new_token = try_refresh_access_token()
     if new_token:
@@ -538,10 +531,10 @@ def index():
                 max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                 httponly=True,
                 secure=False,
-                samesite="Lax"
+                samesite="Lax",
             )
             return response
-    
+
     return redirect(url_for("login"))
 
 
@@ -553,25 +546,27 @@ def api_login():
     username = data.get("username", "").strip() if data else ""
     password = data.get("password", "") if data else ""
     client_ip = request.remote_addr
-    
+
     if not username or not password:
         return jsonify({"error": "Username and password required"}), 400
-    
+
     # Verify username and password
     if verify_user_credentials(username, password):
         # Create tokens
         access_token = create_access_token(username)
         refresh_token = create_refresh_token(username)
-        
+
         logger.info(f"Successful login: user={username}, ip={client_ip}")
-        
-        response = jsonify({
-            "success": True,
-            "message": "Login successful",
-            "access_token": access_token,
-            "refresh_token": refresh_token
-        })
-        
+
+        response = jsonify(
+            {
+                "success": True,
+                "message": "Login successful",
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+            }
+        )
+
         # Set tokens in httpOnly cookies
         response.set_cookie(
             "access_token",
@@ -579,7 +574,7 @@ def api_login():
             max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             httponly=True,
             secure=False,  # Set to True in production with HTTPS
-            samesite="Lax"
+            samesite="Lax",
         )
         response.set_cookie(
             "refresh_token",
@@ -587,11 +582,11 @@ def api_login():
             max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
             httponly=True,
             secure=False,  # Set to True in production with HTTPS
-            samesite="Lax"
+            samesite="Lax",
         )
-        
+
         return response
-    
+
     # Failed login
     logger.warning(f"Failed login attempt: user={username}, ip={client_ip}")
     return jsonify({"error": "Invalid username or password"}), 401
@@ -601,39 +596,36 @@ def api_login():
 def api_refresh():
     """Refresh access token using refresh token."""
     refresh_token = request.cookies.get("refresh_token") or (request.get_json() or {}).get("refresh_token")
-    
+
     if not refresh_token:
         return jsonify({"error": "Refresh token required"}), 401
-    
+
     # Verify refresh token
     payload = verify_token(refresh_token, "refresh")
     if not payload:
         return jsonify({"error": "Invalid or expired refresh token"}), 401
-    
+
     # Check if token exists in database
     token_record = db["refresh_tokens"].find_one({"token": refresh_token})
     if not token_record:
         return jsonify({"error": "Refresh token not found"}), 401
-    
+
     username = payload.get("username")
-    
+
     # Create new access token
     access_token = create_access_token(username)
-    
-    response = jsonify({
-        "success": True,
-        "access_token": access_token
-    })
-    
+
+    response = jsonify({"success": True, "access_token": access_token})
+
     response.set_cookie(
         "access_token",
         access_token,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         httponly=True,
         secure=False,
-        samesite="Lax"
+        samesite="Lax",
     )
-    
+
     return response
 
 
@@ -641,15 +633,15 @@ def api_refresh():
 def api_logout():
     """Logout - invalidate refresh token."""
     refresh_token = request.cookies.get("refresh_token")
-    
+
     if refresh_token:
         # Remove refresh token from database
         db["refresh_tokens"].delete_one({"token": refresh_token})
-    
+
     response = jsonify({"success": True, "message": "Logged out"})
     response.set_cookie("access_token", "", max_age=0)
     response.set_cookie("refresh_token", "", max_age=0)
-    
+
     return response
 
 
@@ -663,7 +655,7 @@ def login():
         payload = verify_token(token, "access")
         if payload:
             return redirect(url_for("dashboard"))
-    
+
     # If no access token, try to refresh using refresh token
     new_token = try_refresh_access_token()
     if new_token:
@@ -676,29 +668,29 @@ def login():
                 max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                 httponly=True,
                 secure=False,
-                samesite="Lax"
+                samesite="Lax",
             )
             return response
-    
+
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         client_ip = request.remote_addr
-        
+
         if not username or not password:
             return render_template("login.html", error="Введите логин и пароль")
-        
+
         # Verify username and password
         if verify_user_credentials(username, password):
             # Create tokens
             access_token = create_access_token(username)
             refresh_token = create_refresh_token(username)
-            
+
             logger.info(f"Successful login: user={username}, ip={client_ip}")
-            
+
             # Create response with redirect
             response = make_response(redirect(url_for("dashboard")))
-            
+
             # Set tokens in httpOnly cookies
             response.set_cookie(
                 "access_token",
@@ -706,7 +698,7 @@ def login():
                 max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
                 httponly=True,
                 secure=False,  # Set to True in production with HTTPS
-                samesite="Lax"
+                samesite="Lax",
             )
             response.set_cookie(
                 "refresh_token",
@@ -714,15 +706,15 @@ def login():
                 max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
                 httponly=True,
                 secure=False,  # Set to True in production with HTTPS
-                samesite="Lax"
+                samesite="Lax",
             )
-            
+
             return response
-        
+
         # Failed login
         logger.warning(f"Failed login attempt: user={username}, ip={client_ip}")
         return render_template("login.html", error="Неверный логин или пароль")
-    
+
     return render_template("login.html")
 
 
@@ -739,15 +731,18 @@ def is_admin(username: str) -> bool:
     """Check if user is admin."""
     return username == ADMIN_USERNAME
 
+
 # Decorator for admin-only endpoints
 def admin_required(f):
     """Decorator to require admin privileges."""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        username = getattr(request, 'current_user', None)
+        username = getattr(request, "current_user", None)
         if not username or not is_admin(username):
             return jsonify({"error": "Admin access required"}), 403
         return f(*args, **kwargs)
+
     return decorated_function
 
 
@@ -755,7 +750,7 @@ def admin_required(f):
 @login_required
 def dashboard():
     """Main dashboard page."""
-    username = getattr(request, 'current_user', 'admin')
+    username = getattr(request, "current_user", "admin")
     return render_template("dashboard.html", username=username)
 
 
@@ -794,26 +789,21 @@ def get_pets():
     username, error_response = get_current_user()
     if error_response:
         return error_response[0], error_response[1]
-    
+
     # Get pets where user is owner or in shared_with
-    pets = list(db["pets"].find({
-        "$or": [
-            {"owner": username},
-            {"shared_with": username}
-        ]
-    }).sort("created_at", -1))
-    
+    pets = list(db["pets"].find({"$or": [{"owner": username}, {"shared_with": username}]}).sort("created_at", -1))
+
     for pet in pets:
         pet["_id"] = str(pet["_id"])
         if isinstance(pet.get("birth_date"), datetime):
             pet["birth_date"] = pet["birth_date"].strftime("%Y-%m-%d")
         if isinstance(pet.get("created_at"), datetime):
             pet["created_at"] = pet["created_at"].strftime("%Y-%m-%d %H:%M")
-        
+
         # Add photo URL if file exists
         if pet.get("photo_file_id"):
-            pet["photo_url"] = url_for('get_pet_photo', pet_id=pet["_id"], _external=False)
-    
+            pet["photo_url"] = url_for("get_pet_photo", pet_id=pet["_id"], _external=False)
+
     return jsonify({"pets": pets})
 
 
@@ -822,23 +812,25 @@ def get_pets():
 def create_pet():
     """Create a new pet."""
     try:
-        username = getattr(request, 'current_user', None)
+        username = getattr(request, "current_user", None)
         if not username:
             return jsonify({"error": "Unauthorized"}), 401
-        
+
         # Handle form data with file upload
-        if request.content_type and 'multipart/form-data' in request.content_type:
+        if request.content_type and "multipart/form-data" in request.content_type:
             name = request.form.get("name", "").strip()
             if not name:
                 return jsonify({"error": "Имя животного обязательно"}), 400
-            
+
             # Handle photo file upload
             photo_file_id = None
-            if 'photo_file' in request.files:
-                photo_file = request.files['photo_file']
+            if "photo_file" in request.files:
+                photo_file = request.files["photo_file"]
                 if photo_file.filename:
-                    photo_file_id = str(fs.put(photo_file, filename=photo_file.filename, content_type=photo_file.content_type))
-            
+                    photo_file_id = str(
+                        fs.put(photo_file, filename=photo_file.filename, content_type=photo_file.content_type)
+                    )
+
             # Parse birth_date if provided
             birth_date = None
             if request.form.get("birth_date"):
@@ -847,7 +839,7 @@ def create_pet():
                 except ValueError as e:
                     logger.warning(f"Invalid birth_date format: {e}")
                     return jsonify({"error": f"Неверный формат даты рождения: {str(e)}"}), 400
-            
+
             pet_data = {
                 "name": name,
                 "breed": request.form.get("breed", "").strip(),
@@ -858,7 +850,7 @@ def create_pet():
                 "shared_with": [],
                 "access_requests": [],
                 "created_at": datetime.utcnow(),
-                "created_by": username
+                "created_by": username,
             }
         else:
             # Handle JSON data (backward compatibility)
@@ -866,7 +858,7 @@ def create_pet():
             name = data.get("name", "").strip()
             if not name:
                 return jsonify({"error": "Имя животного обязательно"}), 400
-            
+
             # Parse birth_date if provided
             birth_date = None
             if data.get("birth_date"):
@@ -875,7 +867,7 @@ def create_pet():
                 except ValueError as e:
                     logger.warning(f"Invalid birth_date format: {e}")
                     return jsonify({"error": f"Неверный формат даты рождения: {str(e)}"}), 400
-            
+
             pet_data = {
                 "name": name,
                 "breed": data.get("breed", "").strip(),
@@ -886,19 +878,19 @@ def create_pet():
                 "shared_with": [],
                 "access_requests": [],
                 "created_at": datetime.utcnow(),
-                "created_by": username
+                "created_by": username,
             }
-        
+
         result = db["pets"].insert_one(pet_data)
         pet_data["_id"] = str(result.inserted_id)
         if isinstance(pet_data.get("birth_date"), datetime):
             pet_data["birth_date"] = pet_data["birth_date"].strftime("%Y-%m-%d")
         if isinstance(pet_data.get("created_at"), datetime):
             pet_data["created_at"] = pet_data["created_at"].strftime("%Y-%m-%d %H:%M")
-        
+
         logger.info(f"Pet created: id={pet_data['_id']}, name={pet_data['name']}, owner={username}")
         return jsonify({"success": True, "pet": pet_data, "message": "Животное создано"}), 201
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for pet creation: user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -916,32 +908,36 @@ def get_pet(pet_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get pet and validate access
         pet, error_response = get_pet_and_validate(pet_id, username, require_owner=False)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         pet["_id"] = str(pet["_id"])
         if isinstance(pet.get("birth_date"), datetime):
             pet["birth_date"] = pet["birth_date"].strftime("%Y-%m-%d")
         if isinstance(pet.get("created_at"), datetime):
             pet["created_at"] = pet["created_at"].strftime("%Y-%m-%d %H:%M")
-        
+
         # Add photo URL if file exists
         if pet.get("photo_file_id"):
-            pet["photo_url"] = url_for('get_pet_photo', pet_id=pet["_id"], _external=False)
-        
+            pet["photo_url"] = url_for("get_pet_photo", pet_id=pet["_id"], _external=False)
+
         # Add current user info for frontend
         pet["current_user_is_owner"] = pet.get("owner") == username
-        
+
         return jsonify({"pet": pet})
-    
+
     except ValueError as e:
-        logger.warning(f"Invalid input data for get_pet: id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}")
+        logger.warning(
+            f"Invalid input data for get_pet: id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}"
+        )
         return jsonify({"error": "Invalid input data"}), 400
     except Exception as e:
-        logger.error(f"Error getting pet: id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}", exc_info=True)
+        logger.error(
+            f"Error getting pet: id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -954,24 +950,24 @@ def update_pet(pet_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get pet and validate access (owner only)
         pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Handle form data with file upload
-        if request.content_type and 'multipart/form-data' in request.content_type:
+        if request.content_type and "multipart/form-data" in request.content_type:
             name = request.form.get("name", "").strip()
             if not name:
                 return jsonify({"error": "Имя животного обязательно"}), 400
-            
+
             # Handle photo file upload
             photo_file_id = pet.get("photo_file_id")  # Keep existing if no new file
-            
-            if 'photo_file' in request.files:
-                photo_file = request.files['photo_file']
-                
+
+            if "photo_file" in request.files:
+                photo_file = request.files["photo_file"]
+
                 if photo_file.filename:
                     # Delete old photo if exists
                     old_photo_id = pet.get("photo_file_id")
@@ -979,10 +975,14 @@ def update_pet(pet_id):
                         try:
                             fs.delete(ObjectId(old_photo_id))
                         except Exception as e:
-                            logger.warning(f"Failed to delete old photo: photo_id={old_photo_id}, pet_id={pet_id}, error={e}")
-                    
+                            logger.warning(
+                                f"Failed to delete old photo: photo_id={old_photo_id}, pet_id={pet_id}, error={e}"
+                            )
+
                     # Upload new photo
-                    photo_file_id = str(fs.put(photo_file, filename=photo_file.filename, content_type=photo_file.content_type))
+                    photo_file_id = str(
+                        fs.put(photo_file, filename=photo_file.filename, content_type=photo_file.content_type)
+                    )
                 elif request.form.get("remove_photo") == "true":
                     # Remove photo
                     old_photo_id = pet.get("photo_file_id")
@@ -990,9 +990,11 @@ def update_pet(pet_id):
                         try:
                             fs.delete(ObjectId(old_photo_id))
                         except Exception as e:
-                            logger.warning(f"Failed to delete photo: photo_id={old_photo_id}, pet_id={pet_id}, error={e}")
+                            logger.warning(
+                                f"Failed to delete photo: photo_id={old_photo_id}, pet_id={pet_id}, error={e}"
+                            )
                     photo_file_id = None
-            
+
             # Parse birth_date if provided
             birth_date = None
             if request.form.get("birth_date"):
@@ -1001,7 +1003,7 @@ def update_pet(pet_id):
                 except ValueError as e:
                     logger.warning(f"Invalid birth_date format: {e}")
                     return jsonify({"error": f"Неверный формат даты рождения: {str(e)}"}), 400
-            
+
             update_data = {
                 "name": name,
                 "breed": request.form.get("breed", "").strip(),
@@ -1018,7 +1020,7 @@ def update_pet(pet_id):
             name = data.get("name", "").strip()
             if not name:
                 return jsonify({"error": "Имя животного обязательно"}), 400
-            
+
             # Parse birth_date if provided
             birth_date = None
             if data.get("birth_date"):
@@ -1027,26 +1029,23 @@ def update_pet(pet_id):
                 except ValueError as e:
                     logger.warning(f"Invalid birth_date format: {e}")
                     return jsonify({"error": f"Неверный формат даты рождения: {str(e)}"}), 400
-            
+
             update_data = {
                 "name": name,
                 "breed": data.get("breed", "").strip(),
                 "birth_date": birth_date,
                 "gender": data.get("gender", "").strip(),
-                "photo_url": data.get("photo_url", "").strip()
+                "photo_url": data.get("photo_url", "").strip(),
             }
-        
-        result = db["pets"].update_one(
-            {"_id": ObjectId(pet_id)},
-            {"$set": update_data}
-        )
-        
+
+        result = db["pets"].update_one({"_id": ObjectId(pet_id)}, {"$set": update_data})
+
         if result.matched_count == 0:
             return jsonify({"error": "Животное не найдено"}), 404
-        
+
         logger.info(f"Pet updated: id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Информация о животном обновлена"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for pet update: id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1062,14 +1061,14 @@ def update_pet(pet_id):
 def get_users():
     """Get list of all users (admin only)."""
     users = list(db["users"].find({}).sort("created_at", -1))
-    
+
     for user in users:
         user["_id"] = str(user["_id"])
         # Don't return password hash
         user.pop("password_hash", None)
         if isinstance(user.get("created_at"), datetime):
             user["created_at"] = user["created_at"].strftime("%Y-%m-%d %H:%M")
-    
+
     return jsonify({"users": users})
 
 
@@ -1084,20 +1083,20 @@ def create_user():
         password = data.get("password", "")
         full_name = data.get("full_name", "").strip()
         email = data.get("email", "").strip()
-        
+
         if not username or not password:
             return jsonify({"error": "Username and password required"}), 400
-        
+
         # Check if user already exists
         existing = db["users"].find_one({"username": username})
         if existing:
             return jsonify({"error": "Пользователь с таким именем уже существует"}), 400
-        
+
         # Hash password
         password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-        
-        current_user = getattr(request, 'current_user', 'admin')
-        
+
+        current_user = getattr(request, "current_user", "admin")
+
         user_data = {
             "username": username,
             "password_hash": password_hash,
@@ -1105,18 +1104,18 @@ def create_user():
             "email": email,
             "created_at": datetime.utcnow(),
             "created_by": current_user,
-            "is_active": True
+            "is_active": True,
         }
-        
+
         result = db["users"].insert_one(user_data)
         user_data["_id"] = str(result.inserted_id)
         user_data.pop("password_hash", None)
         if isinstance(user_data.get("created_at"), datetime):
             user_data["created_at"] = user_data["created_at"].strftime("%Y-%m-%d %H:%M")
-        
+
         logger.info(f"User created: username={user_data['username']}, created_by={current_user}")
         return jsonify({"success": True, "user": user_data, "message": "Пользователь создан"}), 201
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for user creation: created_by={current_user}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1133,12 +1132,12 @@ def get_user(username):
     user = db["users"].find_one({"username": username})
     if not user:
         return jsonify({"error": "Пользователь не найден"}), 404
-    
+
     user["_id"] = str(user["_id"])
     user.pop("password_hash", None)
     if isinstance(user.get("created_at"), datetime):
         user["created_at"] = user["created_at"].strftime("%Y-%m-%d %H:%M")
-    
+
     return jsonify({"user": user})
 
 
@@ -1151,31 +1150,28 @@ def update_user(username):
         user = db["users"].find_one({"username": username})
         if not user:
             return jsonify({"error": "Пользователь не найден"}), 404
-        
+
         data = request.get_json()
         update_data = {}
-        
+
         if "full_name" in data:
             update_data["full_name"] = data.get("full_name", "").strip()
         if "email" in data:
             update_data["email"] = data.get("email", "").strip()
         if "is_active" in data:
             update_data["is_active"] = bool(data.get("is_active"))
-        
+
         if not update_data:
             return jsonify({"error": "Нет данных для обновления"}), 400
-        
-        result = db["users"].update_one(
-            {"username": username},
-            {"$set": update_data}
-        )
-        
+
+        result = db["users"].update_one({"username": username}, {"$set": update_data})
+
         if result.matched_count == 0:
             return jsonify({"error": "Пользователь не найден"}), 404
-        
+
         logger.info(f"User updated: username={username}, updated_by={getattr(request, 'current_user', 'admin')}")
         return jsonify({"success": True, "message": "Пользователь обновлен"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for user update: username={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1192,18 +1188,17 @@ def delete_user(username):
     try:
         if username == ADMIN_USERNAME:
             return jsonify({"error": "Нельзя деактивировать администратора"}), 400
-        
-        result = db["users"].update_one(
-            {"username": username},
-            {"$set": {"is_active": False}}
-        )
-        
+
+        result = db["users"].update_one({"username": username}, {"$set": {"is_active": False}})
+
         if result.matched_count == 0:
             return jsonify({"error": "Пользователь не найден"}), 404
-        
-        logger.info(f"User deactivated: username={username}, deactivated_by={getattr(request, 'current_user', 'admin')}")
+
+        logger.info(
+            f"User deactivated: username={username}, deactivated_by={getattr(request, 'current_user', 'admin')}"
+        )
         return jsonify({"success": True, "message": "Пользователь деактивирован"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for user deactivation: username={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1220,28 +1215,25 @@ def reset_user_password(username):
     try:
         data = request.get_json()
         new_password = data.get("password", "")
-        
+
         if not new_password:
             return jsonify({"error": "Новый пароль обязателен"}), 400
-        
+
         user = db["users"].find_one({"username": username})
         if not user:
             return jsonify({"error": "Пользователь не найден"}), 404
-        
+
         # Hash new password
         password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
-        
-        result = db["users"].update_one(
-            {"username": username},
-            {"$set": {"password_hash": password_hash}}
-        )
-        
+
+        result = db["users"].update_one({"username": username}, {"$set": {"password_hash": password_hash}})
+
         if result.matched_count == 0:
             return jsonify({"error": "Пользователь не найден"}), 404
-        
+
         logger.info(f"Password reset: username={username}, reset_by={getattr(request, 'current_user', 'admin')}")
         return jsonify({"success": True, "message": "Пароль изменен"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for password reset: username={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1260,41 +1252,38 @@ def share_pet(pet_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get pet and validate access (owner only)
         pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         data = request.get_json()
         share_username = data.get("username", "").strip()
-        
+
         if not share_username:
             return jsonify({"error": "Имя пользователя обязательно"}), 400
-        
+
         # Check if user exists
         user = db["users"].find_one({"username": share_username, "is_active": True})
         if not user:
             return jsonify({"error": "Пользователь не найден"}), 404
-        
+
         # Don't share with owner
         if share_username == username:
             return jsonify({"error": "Нельзя поделиться с самим собой"}), 400
-        
+
         # Check if already shared
         shared_with = pet.get("shared_with", [])
         if share_username in shared_with:
             return jsonify({"error": "Доступ уже предоставлен этому пользователю"}), 400
-        
+
         # Add to shared_with
-        db["pets"].update_one(
-            {"_id": ObjectId(pet_id)},
-            {"$addToSet": {"shared_with": share_username}}
-        )
-        
+        db["pets"].update_one({"_id": ObjectId(pet_id)}, {"$addToSet": {"shared_with": share_username}})
+
         logger.info(f"Pet shared: id={pet_id}, owner={username}, shared_with={share_username}")
         return jsonify({"success": True, "message": f"Доступ предоставлен пользователю {share_username}"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for sharing pet: id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1312,21 +1301,18 @@ def unshare_pet(pet_id, share_username):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get pet and validate access (owner only)
         pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Remove from shared_with
-        db["pets"].update_one(
-            {"_id": ObjectId(pet_id)},
-            {"$pull": {"shared_with": share_username}}
-        )
-        
+        db["pets"].update_one({"_id": ObjectId(pet_id)}, {"$pull": {"shared_with": share_username}})
+
         logger.info(f"Pet unshared: id={pet_id}, owner={username}, unshared_from={share_username}")
         return jsonify({"success": True, "message": f"Доступ убран у пользователя {share_username}"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for unsharing pet: id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1344,36 +1330,33 @@ def request_pet_access(pet_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Validate pet_id (pet existence will be checked, but access is not required for requests)
         if not validate_pet_id(pet_id):
             return jsonify({"error": "Неверный формат pet_id"}), 400
-        
+
         pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
         if not pet:
             return jsonify({"error": "Животное не найдено"}), 404
-        
+
         # Check if already has access
         if check_pet_access(pet_id, username):
             return jsonify({"error": "У вас уже есть доступ к этому животному"}), 400
-        
+
         # Check if already requested
         access_requests = pet.get("access_requests", [])
         if any(req.get("username") == username for req in access_requests):
             return jsonify({"error": "Запрос на доступ уже отправлен"}), 400
-        
+
         # Add request
         db["pets"].update_one(
             {"_id": ObjectId(pet_id)},
-            {"$addToSet": {"access_requests": {
-                "username": username,
-                "requested_at": datetime.utcnow()
-            }}}
+            {"$addToSet": {"access_requests": {"username": username, "requested_at": datetime.utcnow()}}},
         )
-        
+
         logger.info(f"Access request sent: pet_id={pet_id}, requested_by={username}")
         return jsonify({"success": True, "message": "Запрос на доступ отправлен"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for access request: pet_id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1391,24 +1374,29 @@ def get_access_requests(pet_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get pet and validate access (owner only)
         pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         requests = pet.get("access_requests", [])
         for req in requests:
             if isinstance(req.get("requested_at"), datetime):
                 req["requested_at"] = req["requested_at"].strftime("%Y-%m-%d %H:%M")
-        
+
         return jsonify({"requests": requests})
-    
+
     except ValueError as e:
-        logger.warning(f"Invalid input data for get_access_requests: pet_id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}")
+        logger.warning(
+            f"Invalid input data for get_access_requests: pet_id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}"
+        )
         return jsonify({"error": "Invalid input data"}), 400
     except Exception as e:
-        logger.error(f"Error getting access requests: pet_id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}", exc_info=True)
+        logger.error(
+            f"Error getting access requests: pet_id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}",
+            exc_info=True,
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -1421,29 +1409,29 @@ def approve_access_request(pet_id, request_username):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get pet and validate access (owner only)
         pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Check if request exists
         access_requests = pet.get("access_requests", [])
         if not any(req.get("username") == request_username for req in access_requests):
             return jsonify({"error": "Запрос не найден"}), 404
-        
+
         # Add to shared_with and remove from requests
         db["pets"].update_one(
             {"_id": ObjectId(pet_id)},
             {
                 "$addToSet": {"shared_with": request_username},
-                "$pull": {"access_requests": {"username": request_username}}
-            }
+                "$pull": {"access_requests": {"username": request_username}},
+            },
         )
-        
+
         logger.info(f"Access request approved: pet_id={pet_id}, owner={username}, approved_user={request_username}")
         return jsonify({"success": True, "message": f"Доступ предоставлен пользователю {request_username}"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for approving access: pet_id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1461,21 +1449,18 @@ def reject_access_request(pet_id, request_username):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get pet and validate access (owner only)
         pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Remove from requests
-        db["pets"].update_one(
-            {"_id": ObjectId(pet_id)},
-            {"$pull": {"access_requests": {"username": request_username}}}
-        )
-        
+        db["pets"].update_one({"_id": ObjectId(pet_id)}, {"$pull": {"access_requests": {"username": request_username}}})
+
         logger.info(f"Access request rejected: pet_id={pet_id}, owner={username}, rejected_user={request_username}")
-        return jsonify({"success": True, "message": f"Запрос отклонен"}), 200
-    
+        return jsonify({"success": True, "message": "Запрос отклонен"}), 200
+
     except ValueError as e:
         logger.warning(f"Invalid input data for rejecting access: pet_id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1493,20 +1478,20 @@ def delete_pet(pet_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get pet and validate access (owner only)
         pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         result = db["pets"].delete_one({"_id": ObjectId(pet_id)})
-        
+
         if result.deleted_count == 0:
             return jsonify({"error": "Животное не найдено"}), 404
-        
+
         logger.info(f"Pet deleted: id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Животное удалено"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid pet_id for deletion: id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid pet_id format"}), 400
@@ -1522,37 +1507,37 @@ def add_asthma_attack():
     try:
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
-        
+
         # Get current user
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Validate pet_id and check access
         success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
         event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "asthma attack", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         attack_data = {
             "pet_id": pet_id,
             "date_time": event_dt,
             "duration": data.get("duration", ""),
             "reason": data.get("reason", ""),
             "inhalation": data.get("inhalation", False),
-            "comment": data.get("comment", "")
+            "comment": data.get("comment", ""),
         }
-        
+
         db["asthma_attacks"].insert_one(attack_data)
         logger.info(f"Asthma attack recorded: pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Приступ астмы записан"}), 201
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for asthma attack: pet_id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1568,37 +1553,37 @@ def add_defecation():
     try:
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
-        
+
         # Get current user
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Validate pet_id and check access
         success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
         event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "defecation", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         defecation_data = {
             "pet_id": pet_id,
             "date_time": event_dt,
             "stool_type": data.get("stool_type", ""),
             "color": data.get("color", "Коричневый"),
             "food": data.get("food", ""),
-            "comment": data.get("comment", "")
+            "comment": data.get("comment", ""),
         }
-        
+
         db["defecations"].insert_one(defecation_data)
         logger.info(f"Defecation recorded: pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Дефекация записана"}), 201
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for defecation: pet_id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1614,34 +1599,30 @@ def add_litter():
     try:
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
-        
+
         # Get current user
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Validate pet_id and check access
         success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
         event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "litter change", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
-        
-        litter_data = {
-            "pet_id": pet_id,
-            "date_time": event_dt,
-            "comment": data.get("comment", "")
-        }
-        
+
+        litter_data = {"pet_id": pet_id, "date_time": event_dt, "comment": data.get("comment", "")}
+
         db["litter_changes"].insert_one(litter_data)
         logger.info(f"Litter change recorded: pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Смена лотка записана"}), 201
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for litter change: pet_id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1657,36 +1638,36 @@ def add_weight():
     try:
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
-        
+
         # Get current user
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Validate pet_id and check access
         success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
         event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "weight", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         weight_data = {
             "pet_id": pet_id,
             "date_time": event_dt,
             "weight": data.get("weight", ""),
             "food": data.get("food", ""),
-            "comment": data.get("comment", "")
+            "comment": data.get("comment", ""),
         }
-        
+
         db["weights"].insert_one(weight_data)
         logger.info(f"Weight recorded: pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Вес записан"}), 201
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for weight: pet_id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1700,19 +1681,19 @@ def add_weight():
 def get_asthma_attacks():
     """Get asthma attacks for current pet."""
     pet_id = request.args.get("pet_id")
-    
+
     # Get current user
     username, error_response = get_current_user()
     if error_response:
         return error_response[0], error_response[1]
-    
+
     # Validate pet_id and check access
     success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
-    
+
     attacks = list(db["asthma_attacks"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
-    
+
     for attack in attacks:
         attack["_id"] = str(attack["_id"])
         if isinstance(attack.get("date_time"), datetime):
@@ -1721,7 +1702,7 @@ def get_asthma_attacks():
             attack["inhalation"] = "Да"
         elif attack.get("inhalation") is False:
             attack["inhalation"] = "Нет"
-    
+
     return jsonify({"attacks": attacks})
 
 
@@ -1730,24 +1711,24 @@ def get_asthma_attacks():
 def get_defecations():
     """Get defecations for current pet."""
     pet_id = request.args.get("pet_id")
-    
+
     # Get current user
     username, error_response = get_current_user()
     if error_response:
         return error_response[0], error_response[1]
-    
+
     # Validate pet_id and check access
     success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
-    
+
     defecations = list(db["defecations"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
-    
+
     for defecation in defecations:
         defecation["_id"] = str(defecation["_id"])
         if isinstance(defecation.get("date_time"), datetime):
             defecation["date_time"] = defecation["date_time"].strftime("%Y-%m-%d %H:%M")
-    
+
     return jsonify({"defecations": defecations})
 
 
@@ -1756,24 +1737,24 @@ def get_defecations():
 def get_litter_changes():
     """Get litter changes for current pet."""
     pet_id = request.args.get("pet_id")
-    
+
     # Get current user
     username, error_response = get_current_user()
     if error_response:
         return error_response[0], error_response[1]
-    
+
     # Validate pet_id and check access
     success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
-    
+
     litter_changes = list(db["litter_changes"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
-    
+
     for change in litter_changes:
         change["_id"] = str(change["_id"])
         if isinstance(change.get("date_time"), datetime):
             change["date_time"] = change["date_time"].strftime("%Y-%m-%d %H:%M")
-    
+
     return jsonify({"litter_changes": litter_changes})
 
 
@@ -1782,24 +1763,24 @@ def get_litter_changes():
 def get_weights():
     """Get weight measurements for current pet."""
     pet_id = request.args.get("pet_id")
-    
+
     # Get current user
     username, error_response = get_current_user()
     if error_response:
         return error_response[0], error_response[1]
-    
+
     # Validate pet_id and check access
     success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
-    
+
     weights = list(db["weights"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
-    
+
     for weight in weights:
         weight["_id"] = str(weight["_id"])
         if isinstance(weight.get("date_time"), datetime):
             weight["date_time"] = weight["date_time"].strftime("%Y-%m-%d %H:%M")
-    
+
     return jsonify({"weights": weights})
 
 
@@ -1812,42 +1793,43 @@ def update_asthma_attack(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "asthma_attacks", username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         data = request.get_json()
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "asthma attack update", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(
+            date_str, time_str, "asthma attack update", pet_id, username
+        )
         if error_response:
             return error_response[0], error_response[1]
-        
+
         attack_data = {
             "date_time": event_dt,
             "duration": data.get("duration", ""),
             "reason": data.get("reason", ""),
             "inhalation": data.get("inhalation", False),
-            "comment": data.get("comment", "")
+            "comment": data.get("comment", ""),
         }
-        
-        result = db["asthma_attacks"].update_one(
-            {"_id": ObjectId(record_id)},
-            {"$set": attack_data}
-        )
-        
+
+        result = db["asthma_attacks"].update_one({"_id": ObjectId(record_id)}, {"$set": attack_data})
+
         if result.matched_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Asthma attack updated: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Приступ астмы обновлен"}), 200
-    
+
     except ValueError as e:
-        logger.warning(f"Invalid input data for asthma attack update: record_id={record_id}, user={username}, error={e}")
+        logger.warning(
+            f"Invalid input data for asthma attack update: record_id={record_id}, user={username}, error={e}"
+        )
         return jsonify({"error": "Invalid input data"}), 400
     except Exception as e:
         logger.error(f"Error updating asthma attack: record_id={record_id}, user={username}, error={e}", exc_info=True)
@@ -1863,24 +1845,24 @@ def delete_asthma_attack(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "asthma_attacks", username)
         if error_response:
             return error_response[0], error_response[1]
-        
-        result = db["asthma_attacks"].delete_one(
-            {"_id": ObjectId(record_id)}
-        )
-        
+
+        result = db["asthma_attacks"].delete_one({"_id": ObjectId(record_id)})
+
         if result.deleted_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Asthma attack deleted: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Приступ астмы удален"}), 200
-    
+
     except ValueError as e:
-        logger.warning(f"Invalid record_id for asthma attack deletion: record_id={record_id}, user={username}, error={e}")
+        logger.warning(
+            f"Invalid record_id for asthma attack deletion: record_id={record_id}, user={username}, error={e}"
+        )
         return jsonify({"error": "Invalid record_id format"}), 400
     except Exception as e:
         logger.error(f"Error deleting asthma attack: record_id={record_id}, user={username}, error={e}", exc_info=True)
@@ -1896,40 +1878,37 @@ def update_defecation(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "defecations", username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         data = request.get_json()
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
         event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "defecation update", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         defecation_data = {
             "date_time": event_dt,
             "stool_type": data.get("stool_type", ""),
             "color": data.get("color", "Коричневый"),
             "food": data.get("food", ""),
-            "comment": data.get("comment", "")
+            "comment": data.get("comment", ""),
         }
-        
-        result = db["defecations"].update_one(
-            {"_id": ObjectId(record_id)},
-            {"$set": defecation_data}
-        )
-        
+
+        result = db["defecations"].update_one({"_id": ObjectId(record_id)}, {"$set": defecation_data})
+
         if result.matched_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Defecation updated: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Дефекация обновлена"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for defecation update: record_id={record_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -1947,22 +1926,20 @@ def delete_defecation(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "defecations", username)
         if error_response:
             return error_response[0], error_response[1]
-        
-        result = db["defecations"].delete_one(
-            {"_id": ObjectId(record_id)}
-        )
-        
+
+        result = db["defecations"].delete_one({"_id": ObjectId(record_id)})
+
         if result.deleted_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Defecation deleted: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Дефекация удалена"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid record_id for defecation deletion: record_id={record_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid record_id format"}), 400
@@ -1980,39 +1957,37 @@ def update_litter(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "litter_changes", username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         data = request.get_json()
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "litter change update", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(
+            date_str, time_str, "litter change update", pet_id, username
+        )
         if error_response:
             return error_response[0], error_response[1]
-        
-        litter_data = {
-            "date_time": event_dt,
-            "comment": data.get("comment", "")
-        }
-        
-        result = db["litter_changes"].update_one(
-            {"_id": ObjectId(record_id)},
-            {"$set": litter_data}
-        )
-        
+
+        litter_data = {"date_time": event_dt, "comment": data.get("comment", "")}
+
+        result = db["litter_changes"].update_one({"_id": ObjectId(record_id)}, {"$set": litter_data})
+
         if result.matched_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Litter change updated: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Смена лотка обновлена"}), 200
-    
+
     except ValueError as e:
-        logger.warning(f"Invalid input data for litter change update: record_id={record_id}, user={username}, error={e}")
+        logger.warning(
+            f"Invalid input data for litter change update: record_id={record_id}, user={username}, error={e}"
+        )
         return jsonify({"error": "Invalid input data"}), 400
     except Exception as e:
         logger.error(f"Error updating litter change: record_id={record_id}, user={username}, error={e}", exc_info=True)
@@ -2028,24 +2003,24 @@ def delete_litter(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "litter_changes", username)
         if error_response:
             return error_response[0], error_response[1]
-        
-        result = db["litter_changes"].delete_one(
-            {"_id": ObjectId(record_id)}
-        )
-        
+
+        result = db["litter_changes"].delete_one({"_id": ObjectId(record_id)})
+
         if result.deleted_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Litter change deleted: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Смена лотка удалена"}), 200
-    
+
     except ValueError as e:
-        logger.warning(f"Invalid record_id for litter change deletion: record_id={record_id}, user={username}, error={e}")
+        logger.warning(
+            f"Invalid record_id for litter change deletion: record_id={record_id}, user={username}, error={e}"
+        )
         return jsonify({"error": "Invalid record_id format"}), 400
     except Exception as e:
         logger.error(f"Error deleting litter change: record_id={record_id}, user={username}, error={e}", exc_info=True)
@@ -2061,39 +2036,36 @@ def update_weight(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "weights", username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         data = request.get_json()
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
         event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "weight update", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         weight_data = {
             "date_time": event_dt,
             "weight": data.get("weight", ""),
             "food": data.get("food", ""),
-            "comment": data.get("comment", "")
+            "comment": data.get("comment", ""),
         }
-        
-        result = db["weights"].update_one(
-            {"_id": ObjectId(record_id)},
-            {"$set": weight_data}
-        )
-        
+
+        result = db["weights"].update_one({"_id": ObjectId(record_id)}, {"$set": weight_data})
+
         if result.matched_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Weight updated: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Вес обновлен"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for weight update: record_id={record_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -2111,22 +2083,20 @@ def delete_weight(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "weights", username)
         if error_response:
             return error_response[0], error_response[1]
-        
-        result = db["weights"].delete_one(
-            {"_id": ObjectId(record_id)}
-        )
-        
+
+        result = db["weights"].delete_one({"_id": ObjectId(record_id)})
+
         if result.deleted_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Weight deleted: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Вес удален"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid record_id for weight deletion: record_id={record_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid record_id format"}), 400
@@ -2142,35 +2112,35 @@ def add_feeding():
     try:
         data = request.get_json()
         pet_id = request.args.get("pet_id") or data.get("pet_id")
-        
+
         # Get current user
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Validate pet_id and check access
         success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
         event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "feeding", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         feeding_data = {
             "pet_id": pet_id,
             "date_time": event_dt,
             "food_weight": data.get("food_weight", ""),
-            "comment": data.get("comment", "")
+            "comment": data.get("comment", ""),
         }
-        
+
         db["feedings"].insert_one(feeding_data)
         logger.info(f"Feeding recorded: pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Дневная порция записана"}), 201
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for feeding: pet_id={pet_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -2184,24 +2154,24 @@ def add_feeding():
 def get_feedings():
     """Get feedings for current pet."""
     pet_id = request.args.get("pet_id")
-    
+
     # Get current user
     username, error_response = get_current_user()
     if error_response:
         return error_response[0], error_response[1]
-    
+
     # Validate pet_id and check access
     success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
-    
+
     feedings = list(db["feedings"].find({"pet_id": pet_id}).sort("date_time", -1).limit(100))
-    
+
     for feeding in feedings:
         feeding["_id"] = str(feeding["_id"])
         if isinstance(feeding.get("date_time"), datetime):
             feeding["date_time"] = feeding["date_time"].strftime("%Y-%m-%d %H:%M")
-    
+
     return jsonify({"feedings": feedings})
 
 
@@ -2214,38 +2184,35 @@ def update_feeding(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "feedings", username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         data = request.get_json()
-        
+
         # Parse datetime
         date_str = data.get("date")
         time_str = data.get("time")
         event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "feeding update", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
-        
+
         feeding_data = {
             "date_time": event_dt,
             "food_weight": data.get("food_weight", ""),
-            "comment": data.get("comment", "")
+            "comment": data.get("comment", ""),
         }
-        
-        result = db["feedings"].update_one(
-            {"_id": ObjectId(record_id)},
-            {"$set": feeding_data}
-        )
-        
+
+        result = db["feedings"].update_one({"_id": ObjectId(record_id)}, {"$set": feeding_data})
+
         if result.matched_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Feeding updated: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Дневная порция обновлена"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid input data for feeding update: record_id={record_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid input data"}), 400
@@ -2263,22 +2230,20 @@ def delete_feeding(record_id):
         username, error_response = get_current_user()
         if error_response:
             return error_response[0], error_response[1]
-        
+
         # Get record and validate access
         existing, pet_id, error_response = get_record_and_validate_access(record_id, "feedings", username)
         if error_response:
             return error_response[0], error_response[1]
-        
-        result = db["feedings"].delete_one(
-            {"_id": ObjectId(record_id)}
-        )
-        
+
+        result = db["feedings"].delete_one({"_id": ObjectId(record_id)})
+
         if result.deleted_count == 0:
             return jsonify({"error": "Record not found"}), 404
-        
+
         logger.info(f"Feeding deleted: record_id={record_id}, pet_id={pet_id}, user={username}")
         return jsonify({"success": True, "message": "Дневная порция удалена"}), 200
-    
+
     except ValueError as e:
         logger.warning(f"Invalid record_id for feeding deletion: record_id={record_id}, user={username}, error={e}")
         return jsonify({"error": "Invalid record_id format"}), 400
@@ -2293,21 +2258,21 @@ def export_data(export_type, format_type):
     """Export data in various formats."""
     try:
         pet_id = request.args.get("pet_id")
-        
+
         if not pet_id:
             return jsonify({"error": "pet_id обязателен"}), 400
-        
+
         if not validate_pet_id(pet_id):
             return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
+
+        username = getattr(request, "current_user", None)
         if not username:
             return jsonify({"error": "Unauthorized"}), 401
-        
+
         # Check pet access
         if not check_pet_access(pet_id, username):
             return jsonify({"error": "Нет доступа к этому животному"}), 403
-        
+
         if export_type == "feeding":
             collection = db["feedings"]
             title = "Дневные порции корма"
@@ -2354,25 +2319,25 @@ def export_data(export_type, format_type):
             ]
         else:
             return jsonify({"error": "Invalid export type"}), 400
-        
+
         records = list(collection.find({"pet_id": pet_id}).sort([("date_time", -1)]))
-        
+
         if not records:
             return jsonify({"error": "Нет данных для выгрузки"}), 404
-        
+
         # Prepare records
         for r in records:
             if isinstance(r.get("date_time"), datetime):
                 r["date_time"] = r["date_time"].strftime("%Y-%m-%d %H:%M")
             else:
                 r["date_time"] = str(r.get("date_time", ""))
-            
+
             if r.get("comment", "").strip() in ("", "Пропустить"):
                 r["comment"] = "-"
-            
+
             if r.get("food", "").strip() in ("", "Пропустить"):
                 r["food"] = "-"
-            
+
             if export_type == "asthma":
                 inh = r.get("inhalation")
                 if inh is True:
@@ -2381,10 +2346,10 @@ def export_data(export_type, format_type):
                     r["inhalation"] = "Нет"
                 else:
                     r["inhalation"] = "-"
-        
+
         # Generate file based on format
         filename_base = f"{title.replace(' ', '_').lower()}_{datetime.now().strftime('%Y%m%d_%H%M')}"
-        
+
         if format_type == "csv":
             output = io.StringIO()
             fieldnames = [ru for _, ru in fields]
@@ -2395,7 +2360,7 @@ def export_data(export_type, format_type):
             content = output.getvalue().encode("utf-8-sig")  # BOM for Excel
             mimetype = "text/csv"
             filename = f"{filename_base}.csv"
-            
+
         elif format_type == "tsv":
             output = io.StringIO()
             fieldnames = [ru for _, ru in fields]
@@ -2406,7 +2371,7 @@ def export_data(export_type, format_type):
             content = output.getvalue().encode("utf-8")
             mimetype = "text/tab-separated-values"
             filename = f"{filename_base}.tsv"
-            
+
         elif format_type == "html":
             html = f"""<!DOCTYPE html>
 <html lang="ru">
@@ -2448,7 +2413,7 @@ def export_data(export_type, format_type):
             content = html.encode("utf-8")
             mimetype = "text/html"
             filename = f"{filename_base}.html"
-            
+
         elif format_type == "md":
             md = f"# {title}\n\n"
             md += "| " + " | ".join(ru for _, ru in fields) + " |\n"
@@ -2458,25 +2423,30 @@ def export_data(export_type, format_type):
             content = md.encode("utf-8")
             mimetype = "text/markdown"
             filename = f"{filename_base}.md"
-            
+
         else:
             return jsonify({"error": "Invalid format type"}), 400
-        
+
         # Encode filename for HTTP header (RFC 5987)
         encoded_filename = quote(filename)
-        
+
         response = make_response(content)
         response.headers["Content-Type"] = mimetype
         response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
         response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
         logger.info(f"Data exported: type={export_type}, format={format_type}, pet_id={pet_id}, user={username}")
         return response
-    
+
     except ValueError as e:
-        logger.warning(f"Invalid input data for export: type={export_type}, format={format_type}, pet_id={pet_id}, user={username}, error={e}")
+        logger.warning(
+            f"Invalid input data for export: type={export_type}, format={format_type}, pet_id={pet_id}, user={username}, error={e}"
+        )
         return jsonify({"error": "Invalid input data"}), 400
     except Exception as e:
-        logger.error(f"Error exporting data: type={export_type}, format={format_type}, pet_id={pet_id}, user={username}, error={e}", exc_info=True)
+        logger.error(
+            f"Error exporting data: type={export_type}, format={format_type}, pet_id={pet_id}, user={username}, error={e}",
+            exc_info=True,
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -2487,48 +2457,52 @@ def get_pet_photo(pet_id):
     try:
         if not validate_pet_id(pet_id):
             return jsonify({"error": "Неверный формат pet_id"}), 400
-        
-        username = getattr(request, 'current_user', None)
+
+        username = getattr(request, "current_user", None)
         if not username:
             return jsonify({"error": "Unauthorized"}), 401
-        
+
         pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
         if not pet:
             return jsonify({"error": "Животное не найдено"}), 404
-        
+
         # Check access
         if pet.get("owner") != username and username not in pet.get("shared_with", []):
             return jsonify({"error": "Нет доступа"}), 403
-        
+
         photo_file_id = pet.get("photo_file_id")
         if not photo_file_id:
             return jsonify({"error": "Фото не найдено"}), 404
-        
+
         try:
             photo_file = fs.get(ObjectId(photo_file_id))
             photo_data = photo_file.read()
-            
+
             response = make_response(photo_data)
-            response.headers.set('Content-Type', photo_file.content_type)
-            response.headers.set('Content-Disposition', 'inline')
-            response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-            response.headers.set('Pragma', 'no-cache')
-            response.headers.set('Expires', '0')
+            response.headers.set("Content-Type", photo_file.content_type)
+            response.headers.set("Content-Disposition", "inline")
+            response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate")
+            response.headers.set("Pragma", "no-cache")
+            response.headers.set("Expires", "0")
             logger.info(f"Pet photo retrieved: pet_id={pet_id}, user={username}")
             return response
         except Exception as e:
             logger.error(f"Error retrieving pet photo: pet_id={pet_id}, user={username}, error={e}", exc_info=True)
             return jsonify({"error": "Ошибка загрузки фото"}), 404
-    
+
     except ValueError as e:
-        logger.warning(f"Invalid pet_id for photo: id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}")
+        logger.warning(
+            f"Invalid pet_id for photo: id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}"
+        )
         return jsonify({"error": "Invalid pet_id format"}), 400
     except Exception as e:
-        logger.error(f"Error getting pet photo: id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}", exc_info=True)
+        logger.error(
+            f"Error getting pet photo: id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}",
+            exc_info=True,
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
 if __name__ == "__main__":
     ensure_default_admin()
     app.run(host="0.0.0.0", port=5000, debug=True)
-
