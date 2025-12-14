@@ -66,7 +66,7 @@
                 </div>
                 <div class="form-group">
                     <label for="feeding-food-weight">Вес корма (граммы)</label>
-                    <input type="number" id="feeding-food-weight" name="food_weight" min="0" step="0.1" placeholder="Например: 50" required>
+                    <input type="number" id="feeding-food-weight" name="food_weight" min="0" step="0.1" placeholder="50" required>
                 </div>
                 <div class="form-group">
                     <label for="feeding-comment">Комментарий (необязательно)</label>
@@ -117,7 +117,7 @@
                 </div>
                 <div class="form-group">
                     <label for="asthma-reason">Причина</label>
-                    <input type="text" id="asthma-reason" name="reason" value="Пил" placeholder="Например: Пил после сна" required>
+                    <input type="text" id="asthma-reason" name="reason" value="Пил" placeholder="Пил после сна" required>
                 </div>
                 <div class="form-group">
                     <label for="asthma-comment">Комментарий (необязательно)</label>
@@ -204,7 +204,7 @@
                 </div>
                 <div class="form-group">
                     <label for="litter-comment">Комментарий (необязательно)</label>
-                    <textarea id="litter-comment" name="comment" rows="3" placeholder="Например: Полная замена наполнителя"></textarea>
+                    <textarea id="litter-comment" name="comment" rows="3" placeholder="Полная замена наполнителя"></textarea>
                 </div>
             </div>
             <div class="form-actions">
@@ -235,7 +235,7 @@
                 </div>
                 <div class="form-group">
                     <label for="weight-value">Вес (кг)</label>
-                    <input type="number" id="weight-value" name="weight" step="0.01" min="0" max="20" placeholder="Например: 4.5" required>
+                    <input type="number" id="weight-value" name="weight" step="0.01" min="0" max="20" placeholder="4.5" required>
                 </div>
                 <div class="form-group">
                     <label for="weight-food">Корм</label>
@@ -278,7 +278,7 @@
                     </div>
                     <div class="form-group">
                         <label for="default-asthma-reason">Причина по умолчанию</label>
-                        <input type="text" id="default-asthma-reason" name="default_asthma_reason" placeholder="Например: Пил">
+                        <input type="text" id="default-asthma-reason" name="default_asthma_reason" placeholder="Пил">
                     </div>
                 </div>
                 
@@ -303,7 +303,7 @@
                     </div>
                     <div class="form-group">
                         <label for="default-defecation-food">Корм по умолчанию</label>
-                        <input type="text" id="default-defecation-food" name="default_defecation_food" placeholder="Например: Royal Canin Fibre Response">
+                        <input type="text" id="default-defecation-food" name="default_defecation_food" placeholder="Royal Canin Fibre Response">
                     </div>
                 </div>
                 
@@ -311,7 +311,7 @@
                     <h3>Вес</h3>
                     <div class="form-group">
                         <label for="default-weight-food">Корм по умолчанию</label>
-                        <input type="text" id="default-weight-food" name="default_weight_food" placeholder="Например: Royal Canin Fibre Response">
+                        <input type="text" id="default-weight-food" name="default_weight_food" placeholder="Royal Canin Fibre Response">
                     </div>
                 </div>
             </div>
@@ -327,7 +327,7 @@
     <div id="pet-selector" class="screen">
         <div class="form-header">
             <button class="back-btn" onclick="showScreen('main-menu')">← Назад</button>
-            <h2>Управление животными</h2>
+            <h2>Управление питомцами</h2>
         </div>
         <div class="inline-form">
             <div class="form-content">
@@ -336,7 +336,7 @@
                 </div>
             </div>
             <div class="form-actions">
-                <button class="btn btn-primary btn-block" onclick="showScreen('pet-form')">+ Добавить животное</button>
+                <button class="btn btn-primary btn-block" onclick="resetPetForm(); showScreen('pet-form');">+ Добавить питомца</button>
             </div>
         </div>
     </div>
@@ -345,61 +345,58 @@
     <div id="pet-form" class="screen">
         <div class="form-header">
             <button class="back-btn" onclick="showScreen('pet-selector')">← Назад</button>
-            <h2 id="pet-form-title">Добавить животное</h2>
+            <h2 id="pet-form-title">Добавить питомца</h2>
         </div>
         <form id="pet-form-element" class="inline-form">
             <input type="hidden" id="pet-record-id" name="pet_id" value="">
-            <div class="form-group">
-                <label for="pet-name">Имя *</label>
-                <input type="text" id="pet-name" name="name" required placeholder="Например: Саймон">
-            </div>
-            <div class="form-group">
-                <label for="pet-breed">Порода</label>
-                <input type="text" id="pet-breed" name="breed" placeholder="Например: Британская короткошерстная">
-            </div>
-            <div class="form-group">
-                <label for="pet-birth-date">Дата рождения</label>
-                <input type="date" id="pet-birth-date" name="birth_date">
-            </div>
-            <div class="form-group">
-                <label for="pet-gender">Пол</label>
-                <select id="pet-gender" name="gender">
-                    <option value="">Не указано</option>
-                    <option value="Мальчик">Мальчик</option>
-                    <option value="Девочка">Девочка</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="pet-photo-file">Фото животного</label>
-                <input type="file" id="pet-photo-file" name="photo_file" accept="image/*">
-                <div id="pet-photo-preview" class="photo-preview-section" style="display: none;">
-                    <img id="pet-photo-preview-img" src="" alt="Preview">
-                    <button type="button" class="btn btn-secondary btn-small" onclick="clearPetPhoto()">Удалить фото</button>
-                </div>
-                <div id="pet-photo-current" class="photo-current-section" style="display: none;">
-                    <p>Текущее фото:</p>
-                    <img id="pet-photo-current-img" src="" alt="Current">
-                </div>
-            </div>
-            
-            <!-- Access Management Section (only when editing) -->
-            <div id="pet-access-section" class="sharing-section" style="display: none; margin-top: 2rem; padding-top: 2rem; border-top: 0.5px solid var(--ios-separator);">
-                <h3>Управление доступом</h3>
-                <div id="pet-shared-with-list" class="shared-list">
-                    <div class="loading">Загрузка...</div>
-                </div>
-                
+            <div class="form-content">
                 <div class="form-group">
-                    <label for="share-username-input">Поделиться с пользователем</label>
-                    <div class="share-input-group">
-                        <input type="text" id="share-username-input" placeholder="Введите имя пользователя">
-                        <button type="button" class="btn btn-primary" onclick="sharePetFromForm()">Поделиться</button>
+                    <label for="pet-name">Имя *</label>
+                    <input type="text" id="pet-name" name="name" required placeholder="Саймон">
+                </div>
+                <div class="form-group">
+                    <label for="pet-breed">Порода</label>
+                    <input type="text" id="pet-breed" name="breed" placeholder="Британская короткошерстная">
+                </div>
+                <div class="form-group">
+                    <label for="pet-birth-date">Дата рождения</label>
+                    <input type="date" id="pet-birth-date" name="birth_date">
+                </div>
+                <div class="form-group">
+                    <label for="pet-gender">Пол</label>
+                    <select id="pet-gender" name="gender">
+                        <option value="">Не указано</option>
+                        <option value="Мальчик">Мальчик</option>
+                        <option value="Девочка">Девочка</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pet-photo-file">Фото питомца</label>
+                    <input type="file" id="pet-photo-file" name="photo_file" accept="image/*">
+                    <div id="pet-photo-preview" class="photo-preview-section" style="display: none;">
+                        <img id="pet-photo-preview-img" src="" alt="Preview">
+                        <button type="button" class="btn btn-secondary btn-small" onclick="clearPetPhoto()">Удалить фото</button>
+                    </div>
+                    <div id="pet-photo-current" class="photo-current-section" style="display: none;">
+                        <h4>Текущее фото</h4>
+                        <img id="pet-photo-current-img" src="" alt="Current">
                     </div>
                 </div>
                 
-                <h3 class="access-requests-title">Запросы на доступ</h3>
-                <div id="pet-access-requests-list" class="requests-list">
-                    <div class="loading">Загрузка...</div>
+                <!-- Access Management Section (only when editing) -->
+                <div id="pet-access-section" class="sharing-section" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 0.5px solid var(--ios-separator);">
+                    <h3>Управление доступом</h3>
+                    <div id="pet-shared-with-list" class="shared-list">
+                        <div class="loading">Загрузка...</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="share-username-input">Поделиться с пользователем</label>
+                        <div class="share-input-group">
+                            <input type="text" id="share-username-input" placeholder="Введите имя пользователя">
+                            <button type="button" class="btn btn-primary" onclick="sharePetFromForm()">Поделиться</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -437,7 +434,7 @@
             <input type="hidden" id="user-record-username" name="username" value="">
             <div class="form-group">
                 <label for="user-username">Имя пользователя *</label>
-                <input type="text" id="user-username" name="username" required placeholder="Например: user123">
+                <input type="text" id="user-username" name="username" required placeholder="user123">
             </div>
             <div class="form-group">
                 <label for="user-password" id="user-password-label">Пароль *</label>
@@ -445,7 +442,7 @@
             </div>
             <div class="form-group">
                 <label for="user-full-name">Полное имя</label>
-                <input type="text" id="user-full-name" name="full_name" placeholder="Например: Мария Иванова">
+                <input type="text" id="user-full-name" name="full_name" placeholder="Мария Иванова">
             </div>
             <div class="form-group">
                 <label for="user-email">Email</label>
@@ -484,17 +481,11 @@
                         <button type="submit" class="btn btn-primary btn-block">Поделиться</button>
                     </div>
                 </form>
-                
-                <h3 class="access-requests-title">Запросы на доступ</h3>
-                <div id="access-requests-list" class="requests-list">
-                    <div class="loading">Загрузка...</div>
-                </div>
             </div>
             
             <div id="sharing-user-section" class="sharing-section" style="display: none;">
                 <div class="empty-state">
                     <p>У вас нет доступа к этому животному</p>
-                    <button class="btn btn-primary" onclick="requestPetAccess()">Запросить доступ</button>
                 </div>
             </div>
         </div>
@@ -1558,7 +1549,7 @@ async function editPet(petId) {
         document.getElementById('pet-breed').value = pet.breed || '';
         document.getElementById('pet-birth-date').value = pet.birth_date || '';
         document.getElementById('pet-gender').value = pet.gender || '';
-        document.getElementById('pet-form-title').textContent = 'Редактировать животное';
+        document.getElementById('pet-form-title').textContent = 'Редактировать питомца';
         document.getElementById('pet-submit-btn').textContent = 'Обновить';
         
         // Show current photo if exists
@@ -1582,7 +1573,7 @@ async function editPet(petId) {
         
         showScreen('pet-form');
     } catch (error) {
-        showAlert('error', 'Ошибка при загрузке животного');
+        showAlert('error', 'Ошибка при загрузке питомца');
         console.error('Error loading pet:', error);
     }
 }
@@ -1605,54 +1596,18 @@ async function loadPetAccessInForm(petId) {
             sharedWith.forEach(username => {
                 html += `
                     <div class="shared-user-item">
-                        <span>${username}</span>
-                        <button class="btn btn-secondary btn-small" onclick="unsharePetFromForm('${petId}', '${username}')">Убрать доступ</button>
+                        <div class="shared-user-name">${username}</div>
+                        <div class="shared-user-actions">
+                            <button class="btn btn-secondary btn-block" onclick="unsharePetFromForm('${petId}', '${username}')">Убрать доступ</button>
+                        </div>
                     </div>
                 `;
             });
             html += '</div>';
             sharedList.innerHTML = html;
         }
-        
-        // Load access requests
-        await loadAccessRequestsInForm(petId);
     } catch (error) {
         console.error('Error loading pet access:', error);
-    }
-}
-
-async function loadAccessRequestsInForm(petId) {
-    const container = document.getElementById('pet-access-requests-list');
-    try {
-        const response = await fetch(`/api/pets/${petId}/access-requests`, {
-            credentials: 'include'
-        });
-        const data = await response.json();
-        const requests = data.requests || [];
-        
-        if (requests.length === 0) {
-            container.innerHTML = '<div class="empty-state"><p>Нет запросов на доступ</p></div>';
-        } else {
-            let html = '<div class="requests-list-items">';
-            requests.forEach(request => {
-                html += `
-                    <div class="request-item">
-                        <div>
-                            <span>${request.username}</span>
-                            <span class="request-date">${new Date(request.requested_at).toLocaleString('ru-RU')}</span>
-                        </div>
-                        <div class="request-actions">
-                            <button class="btn btn-primary btn-small" onclick="approveAccessRequestFromForm('${petId}', '${request.username}')">Одобрить</button>
-                            <button class="btn btn-secondary btn-small" onclick="rejectAccessRequestFromForm('${petId}', '${request.username}')">Отклонить</button>
-                        </div>
-                    </div>
-                `;
-            });
-            html += '</div>';
-            container.innerHTML = html;
-        }
-    } catch (error) {
-        container.innerHTML = '<div class="error">Ошибка загрузки запросов</div>';
     }
 }
 
@@ -1667,7 +1622,7 @@ async function sharePetFromForm() {
     }
     
     if (!petId) {
-        showAlert('error', 'Сначала сохраните животное');
+        showAlert('error', 'Сначала сохраните питомца');
         return;
     }
     
@@ -1715,44 +1670,6 @@ async function unsharePetFromForm(petId, username) {
     }
 }
 
-async function approveAccessRequestFromForm(petId, username) {
-    try {
-        const response = await fetch(`/api/pets/${petId}/access-requests/${username}/approve`, {
-            method: 'POST',
-            credentials: 'include'
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            showAlert('success', result.message || 'Запрос одобрен');
-            await loadPetAccessInForm(petId);
-        } else {
-            showAlert('error', result.error || 'Ошибка при одобрении запроса');
-        }
-    } catch (error) {
-        showAlert('error', 'Ошибка при одобрении запроса');
-    }
-}
-
-async function rejectAccessRequestFromForm(petId, username) {
-    try {
-        const response = await fetch(`/api/pets/${petId}/access-requests/${username}/reject`, {
-            method: 'POST',
-            credentials: 'include'
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            showAlert('success', result.message || 'Запрос отклонен');
-            await loadPetAccessInForm(petId);
-        } else {
-            showAlert('error', result.error || 'Ошибка при отклонении запроса');
-        }
-    } catch (error) {
-        showAlert('error', 'Ошибка при отклонении запроса');
-    }
-}
-
 async function loadPetSharing() {
     const petId = getSelectedPetId();
     if (!petId) {
@@ -1774,7 +1691,7 @@ async function loadPetSharing() {
         });
         
         if (!response.ok) {
-            showAlert('error', 'Ошибка загрузки информации о животном');
+            showAlert('error', 'Ошибка загрузки информации о питомце');
             return;
         }
         
@@ -1795,11 +1712,6 @@ async function loadPetSharing() {
         if (hasAccess) {
             await loadSharedWithList(pet);
         }
-        
-        // Load access requests (only for owner)
-        if (userIsOwner) {
-            await loadAccessRequests(petId);
-        }
     } catch (error) {
         showAlert('error', 'Ошибка загрузки данных');
         console.error('Error:', error);
@@ -1819,57 +1731,17 @@ async function loadSharedWithList(pet) {
         sharedWith.forEach(username => {
             html += `
                 <div class="shared-user-item">
-                    <span>${username}</span>
-                    ${pet.current_user_is_owner ? `<button class="btn btn-secondary btn-small" onclick="unsharePet('${username}')">Убрать доступ</button>` : ''}
+                    <div class="shared-user-name">${username}</div>
+                    ${pet.current_user_is_owner ? `
+                    <div class="shared-user-actions">
+                        <button class="btn btn-secondary btn-block" onclick="unsharePet('${username}')">Убрать доступ</button>
+                    </div>
+                    ` : ''}
                 </div>
             `;
         });
         html += '</div>';
         container.innerHTML = html;
-}
-
-async function loadAccessRequests(petId) {
-    const container = document.getElementById('access-requests-list');
-    
-    try {
-        const response = await fetch(`/api/pets/${petId}/access-requests`, {
-            credentials: 'include'
-        });
-        
-        if (!response.ok) {
-            container.innerHTML = '<div class="error">Ошибка загрузки запросов</div>';
-            return;
-        }
-        
-        const data = await response.json();
-        const requests = data.requests || [];
-        
-        if (requests.length === 0) {
-            container.innerHTML = '<div class="empty-state"><p>Нет запросов на доступ</p></div>';
-            return;
-        }
-        
-        let html = '<div class="requests-list-items">';
-        requests.forEach(req => {
-            html += `
-                <div class="request-item">
-                    <div>
-                        <strong>${req.username}</strong>
-                        <span class="request-date">${req.requested_at}</span>
-                    </div>
-                    <div class="request-actions">
-                        <button class="btn btn-primary btn-small" onclick="approveAccessRequest('${req.username}')">Одобрить</button>
-                        <button class="btn btn-secondary btn-small" onclick="rejectAccessRequest('${req.username}')">Отклонить</button>
-                    </div>
-                </div>
-            `;
-        });
-        html += '</div>';
-        container.innerHTML = html;
-    } catch (error) {
-        container.innerHTML = '<div class="error">Ошибка загрузки запросов</div>';
-        console.error('Error:', error);
-    }
 }
 
 async function sharePetWithUser(username) {
@@ -1925,79 +1797,6 @@ async function unsharePet(username) {
         }
     } catch (error) {
         showAlert('error', 'Ошибка при удалении доступа');
-    }
-}
-
-async function requestPetAccess() {
-    const petId = getSelectedPetId();
-    if (!petId) {
-        showAlert('error', 'Выберите животное в меню навигации');
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/pets/${petId}/request-access`, {
-            method: 'POST',
-            credentials: 'include'
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            showAlert('success', result.message || 'Запрос на доступ отправлен');
-            loadPetSharing();
-        } else {
-            showAlert('error', result.error || 'Ошибка при отправке запроса');
-        }
-    } catch (error) {
-        showAlert('error', 'Ошибка при отправке запроса');
-    }
-}
-
-async function approveAccessRequest(username) {
-    const petId = getSelectedPetId();
-    if (!petId) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/pets/${petId}/access-requests/${username}/approve`, {
-            method: 'POST',
-            credentials: 'include'
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            showAlert('success', result.message || 'Запрос одобрен');
-            loadPetSharing();
-        } else {
-            showAlert('error', result.error || 'Ошибка при одобрении запроса');
-        }
-    } catch (error) {
-        showAlert('error', 'Ошибка при одобрении запроса');
-    }
-}
-
-async function rejectAccessRequest(username) {
-    const petId = getSelectedPetId();
-    if (!petId) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/pets/${petId}/access-requests/${username}/reject`, {
-            method: 'POST',
-            credentials: 'include'
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            showAlert('success', result.message || 'Запрос отклонен');
-            loadPetSharing();
-        } else {
-            showAlert('error', result.error || 'Ошибка при отклонении запроса');
-        }
-    } catch (error) {
-        showAlert('error', 'Ошибка при отклонении запроса');
     }
 }
 
@@ -2069,7 +1868,7 @@ document.getElementById('pet-form-element').addEventListener('submit', async fun
         
         const result = await response.json();
         if (response.ok) {
-            showAlert('success', result.message || (recordId ? 'Животное обновлено' : 'Животное создано'));
+            showAlert('success', result.message || (recordId ? 'Питомец обновлен' : 'Питомец создан'));
             
             // Reset form
             resetPetForm();
@@ -2097,7 +1896,7 @@ document.getElementById('pet-form-element').addEventListener('submit', async fun
 function resetPetForm() {
     document.getElementById('pet-form-element').reset();
     document.getElementById('pet-record-id').value = '';
-    document.getElementById('pet-form-title').textContent = 'Добавить животное';
+    document.getElementById('pet-form-title').textContent = 'Добавить питомца';
     document.getElementById('pet-submit-btn').textContent = 'Сохранить';
     const preview = document.getElementById('pet-photo-preview');
     const previewImg = document.getElementById('pet-photo-preview-img');

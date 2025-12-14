@@ -137,7 +137,6 @@ def test_pet(mock_db, regular_user):
         "gender": "Male",
         "owner": regular_user["username"],
         "shared_with": [],
-        "access_requests": [],
         "created_at": datetime.utcnow(),
         "created_by": regular_user["username"],
     }
@@ -156,7 +155,6 @@ def admin_pet(mock_db):
         "gender": "Female",
         "owner": "admin",
         "shared_with": [],
-        "access_requests": [],
         "created_at": datetime.utcnow(),
         "created_by": "admin",
     }

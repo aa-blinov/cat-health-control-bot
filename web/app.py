@@ -59,11 +59,13 @@ logger = setup_logging(app)
 
 # Initialize Flask-Limiter for rate limiting
 # Use memory storage for tests, MongoDB for production
+# No default limits - rate limiting applied only to specific endpoints (login)
+# Using empty list [] to disable default limits (recommended in documentation)
 storage_uri = os.getenv("RATELIMIT_STORAGE_URI", mongo_uri)
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
+    default_limits=[],  # Empty list disables default limits - only explicit @limiter.limit() decorators apply
     storage_uri=storage_uri,
     strategy="fixed-window",
 )
@@ -334,7 +336,7 @@ def get_pet_and_validate(pet_id, username, require_owner=False):
 
     pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
     if not pet:
-        return None, (jsonify({"error": "Животное не найдено"}), 404)
+        return None, (jsonify({"error": "Питомец не найден"}), 404)
 
     if require_owner:
         if pet.get("owner") != username:
@@ -820,7 +822,7 @@ def create_pet():
         if request.content_type and "multipart/form-data" in request.content_type:
             name = request.form.get("name", "").strip()
             if not name:
-                return jsonify({"error": "Имя животного обязательно"}), 400
+                return jsonify({"error": "Имя питомца обязательно"}), 400
 
             # Handle photo file upload
             photo_file_id = None
@@ -848,7 +850,6 @@ def create_pet():
                 "photo_file_id": str(photo_file_id) if photo_file_id else None,
                 "owner": username,
                 "shared_with": [],
-                "access_requests": [],
                 "created_at": datetime.utcnow(),
                 "created_by": username,
             }
@@ -857,7 +858,7 @@ def create_pet():
             data = request.get_json()
             name = data.get("name", "").strip()
             if not name:
-                return jsonify({"error": "Имя животного обязательно"}), 400
+                return jsonify({"error": "Имя питомца обязательно"}), 400
 
             # Parse birth_date if provided
             birth_date = None
@@ -876,7 +877,6 @@ def create_pet():
                 "photo_url": data.get("photo_url", "").strip(),
                 "owner": username,
                 "shared_with": [],
-                "access_requests": [],
                 "created_at": datetime.utcnow(),
                 "created_by": username,
             }
@@ -889,7 +889,7 @@ def create_pet():
             pet_data["created_at"] = pet_data["created_at"].strftime("%Y-%m-%d %H:%M")
 
         logger.info(f"Pet created: id={pet_data['_id']}, name={pet_data['name']}, owner={username}")
-        return jsonify({"success": True, "pet": pet_data, "message": "Животное создано"}), 201
+        return jsonify({"success": True, "pet": pet_data, "message": "Питомец создан"}), 201
 
     except ValueError as e:
         logger.warning(f"Invalid input data for pet creation: user={username}, error={e}")
@@ -960,7 +960,7 @@ def update_pet(pet_id):
         if request.content_type and "multipart/form-data" in request.content_type:
             name = request.form.get("name", "").strip()
             if not name:
-                return jsonify({"error": "Имя животного обязательно"}), 400
+                return jsonify({"error": "Имя питомца обязательно"}), 400
 
             # Handle photo file upload
             photo_file_id = pet.get("photo_file_id")  # Keep existing if no new file
@@ -1019,7 +1019,7 @@ def update_pet(pet_id):
             data = request.get_json()
             name = data.get("name", "").strip()
             if not name:
-                return jsonify({"error": "Имя животного обязательно"}), 400
+                return jsonify({"error": "Имя питомца обязательно"}), 400
 
             # Parse birth_date if provided
             birth_date = None
@@ -1044,7 +1044,7 @@ def update_pet(pet_id):
             return jsonify({"error": "Животное не найдено"}), 404
 
         logger.info(f"Pet updated: id={pet_id}, user={username}")
-        return jsonify({"success": True, "message": "Информация о животном обновлена"}), 200
+        return jsonify({"success": True, "message": "Информация о питомце обновлена"}), 200
 
     except ValueError as e:
         logger.warning(f"Invalid input data for pet update: id={pet_id}, user={username}, error={e}")
@@ -1321,154 +1321,6 @@ def unshare_pet(pet_id, share_username):
         return jsonify({"error": "Internal server error"}), 500
 
 
-@app.route("/api/pets/<pet_id>/request-access", methods=["POST"])
-@login_required
-def request_pet_access(pet_id):
-    """Request access to pet."""
-    try:
-        # Get current user
-        username, error_response = get_current_user()
-        if error_response:
-            return error_response[0], error_response[1]
-
-        # Validate pet_id (pet existence will be checked, but access is not required for requests)
-        if not validate_pet_id(pet_id):
-            return jsonify({"error": "Неверный формат pet_id"}), 400
-
-        pet = db["pets"].find_one({"_id": ObjectId(pet_id)})
-        if not pet:
-            return jsonify({"error": "Животное не найдено"}), 404
-
-        # Check if already has access
-        if check_pet_access(pet_id, username):
-            return jsonify({"error": "У вас уже есть доступ к этому животному"}), 400
-
-        # Check if already requested
-        access_requests = pet.get("access_requests", [])
-        if any(req.get("username") == username for req in access_requests):
-            return jsonify({"error": "Запрос на доступ уже отправлен"}), 400
-
-        # Add request
-        db["pets"].update_one(
-            {"_id": ObjectId(pet_id)},
-            {"$addToSet": {"access_requests": {"username": username, "requested_at": datetime.utcnow()}}},
-        )
-
-        logger.info(f"Access request sent: pet_id={pet_id}, requested_by={username}")
-        return jsonify({"success": True, "message": "Запрос на доступ отправлен"}), 200
-
-    except ValueError as e:
-        logger.warning(f"Invalid input data for access request: pet_id={pet_id}, user={username}, error={e}")
-        return jsonify({"error": "Invalid input data"}), 400
-    except Exception as e:
-        logger.error(f"Error requesting access: pet_id={pet_id}, user={username}, error={e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
-
-
-@app.route("/api/pets/<pet_id>/access-requests", methods=["GET"])
-@login_required
-def get_access_requests(pet_id):
-    """Get access requests for pet (owner only)."""
-    try:
-        # Get current user
-        username, error_response = get_current_user()
-        if error_response:
-            return error_response[0], error_response[1]
-
-        # Get pet and validate access (owner only)
-        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
-        if error_response:
-            return error_response[0], error_response[1]
-
-        requests = pet.get("access_requests", [])
-        for req in requests:
-            if isinstance(req.get("requested_at"), datetime):
-                req["requested_at"] = req["requested_at"].strftime("%Y-%m-%d %H:%M")
-
-        return jsonify({"requests": requests})
-
-    except ValueError as e:
-        logger.warning(
-            f"Invalid input data for get_access_requests: pet_id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}"
-        )
-        return jsonify({"error": "Invalid input data"}), 400
-    except Exception as e:
-        logger.error(
-            f"Error getting access requests: pet_id={pet_id}, user={getattr(request, 'current_user', None)}, error={e}",
-            exc_info=True,
-        )
-        return jsonify({"error": "Internal server error"}), 500
-
-
-@app.route("/api/pets/<pet_id>/access-requests/<request_username>/approve", methods=["POST"])
-@login_required
-def approve_access_request(pet_id, request_username):
-    """Approve access request (owner only)."""
-    try:
-        # Get current user
-        username, error_response = get_current_user()
-        if error_response:
-            return error_response[0], error_response[1]
-
-        # Get pet and validate access (owner only)
-        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
-        if error_response:
-            return error_response[0], error_response[1]
-
-        # Check if request exists
-        access_requests = pet.get("access_requests", [])
-        if not any(req.get("username") == request_username for req in access_requests):
-            return jsonify({"error": "Запрос не найден"}), 404
-
-        # Add to shared_with and remove from requests
-        db["pets"].update_one(
-            {"_id": ObjectId(pet_id)},
-            {
-                "$addToSet": {"shared_with": request_username},
-                "$pull": {"access_requests": {"username": request_username}},
-            },
-        )
-
-        logger.info(f"Access request approved: pet_id={pet_id}, owner={username}, approved_user={request_username}")
-        return jsonify({"success": True, "message": f"Доступ предоставлен пользователю {request_username}"}), 200
-
-    except ValueError as e:
-        logger.warning(f"Invalid input data for approving access: pet_id={pet_id}, user={username}, error={e}")
-        return jsonify({"error": "Invalid input data"}), 400
-    except Exception as e:
-        logger.error(f"Error approving access request: pet_id={pet_id}, user={username}, error={e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
-
-
-@app.route("/api/pets/<pet_id>/access-requests/<request_username>/reject", methods=["POST"])
-@login_required
-def reject_access_request(pet_id, request_username):
-    """Reject access request (owner only)."""
-    try:
-        # Get current user
-        username, error_response = get_current_user()
-        if error_response:
-            return error_response[0], error_response[1]
-
-        # Get pet and validate access (owner only)
-        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
-        if error_response:
-            return error_response[0], error_response[1]
-
-        # Remove from requests
-        db["pets"].update_one({"_id": ObjectId(pet_id)}, {"$pull": {"access_requests": {"username": request_username}}})
-
-        logger.info(f"Access request rejected: pet_id={pet_id}, owner={username}, rejected_user={request_username}")
-        return jsonify({"success": True, "message": "Запрос отклонен"}), 200
-
-    except ValueError as e:
-        logger.warning(f"Invalid input data for rejecting access: pet_id={pet_id}, user={username}, error={e}")
-        return jsonify({"error": "Invalid input data"}), 400
-    except Exception as e:
-        logger.error(f"Error rejecting access request: pet_id={pet_id}, user={username}, error={e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
-
-
 @app.route("/api/pets/<pet_id>", methods=["DELETE"])
 @login_required
 def delete_pet(pet_id):
@@ -1490,7 +1342,7 @@ def delete_pet(pet_id):
             return jsonify({"error": "Животное не найдено"}), 404
 
         logger.info(f"Pet deleted: id={pet_id}, user={username}")
-        return jsonify({"success": True, "message": "Животное удалено"}), 200
+        return jsonify({"success": True, "message": "Питомец удален"}), 200
 
     except ValueError as e:
         logger.warning(f"Invalid pet_id for deletion: id={pet_id}, user={username}, error={e}")
@@ -2481,9 +2333,9 @@ def get_pet_photo(pet_id):
             response = make_response(photo_data)
             response.headers.set("Content-Type", photo_file.content_type)
             response.headers.set("Content-Disposition", "inline")
-            response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate")
-            response.headers.set("Pragma", "no-cache")
-            response.headers.set("Expires", "0")
+            # Cache for 1 hour to reduce server load, but allow revalidation
+            response.headers.set("Cache-Control", "public, max-age=3600, must-revalidate")
+            response.headers.set("ETag", f'"{photo_file_id}"')
             logger.info(f"Pet photo retrieved: pet_id={pet_id}, user={username}")
             return response
         except Exception as e:
