@@ -759,7 +759,15 @@ document.getElementById('pet-form-element').addEventListener('submit', async fun
             body: formData
         });
         
-        const result = await response.json();
+        let result;
+        try {
+            result = await response.json();
+        } catch (jsonError) {
+            console.error('Error parsing JSON response:', jsonError);
+            showAlert('error', 'Ошибка при обработке ответа сервера');
+            return;
+        }
+        
         if (response.ok) {
             showAlert('success', result.message || (recordId ? 'Питомец обновлен' : 'Питомец создан'));
             
@@ -767,12 +775,20 @@ document.getElementById('pet-form-element').addEventListener('submit', async fun
             resetPetForm();
             
             // If new pet created, set it as selected
-            if (!recordId && result.pet) {
-                setSelectedPet(result.pet._id, result.pet.name);
+            if (!recordId && result.pet && result.pet._id && result.pet.name) {
+                try {
+                    setSelectedPet(result.pet._id, result.pet.name);
+                } catch (selectError) {
+                    console.error('Error setting selected pet:', selectError);
+                }
             }
             
             // Reload pets list to show updated data
-            await renderPetsList();
+            try {
+                await renderPetsList();
+            } catch (renderError) {
+                console.error('Error rendering pets list:', renderError);
+            }
             
             // Return to pet selector screen (same as events)
             setTimeout(() => {
@@ -782,7 +798,8 @@ document.getElementById('pet-form-element').addEventListener('submit', async fun
             showAlert('error', result.error || 'Ошибка при сохранении');
         }
     } catch (error) {
-        showAlert('error', 'Ошибка при сохранении');
+        console.error('Error submitting pet form:', error);
+        showAlert('error', 'Ошибка при сохранении: ' + (error.message || 'Неизвестная ошибка'));
     }
 });
 

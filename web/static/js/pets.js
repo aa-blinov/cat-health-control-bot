@@ -468,3 +468,7 @@ function unsharePetFromForm(petId, username) {
     return PetsModule.unsharePetFromForm(petId, username);
 }
 
+async function renderPetsList() {
+    return await PetsModule.renderPetsList();
+}
+
