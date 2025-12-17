@@ -222,6 +222,7 @@ class TestAuthentication:
         """Test that check-admin returns true for admin user."""
         # Ensure admin user has is_admin flag
         from web.app import db
+
         db["users"].update_one({"username": "admin"}, {"$set": {"is_admin": True}})
 
         response = client.get("/api/auth/check-admin", headers={"Authorization": f"Bearer {admin_token}"})

@@ -33,7 +33,7 @@ ADMIN_PASSWORD_HASH = ADMIN_CONFIG["password_hash"]
 if not ADMIN_PASSWORD_HASH:
     raise RuntimeError(
         "ADMIN_PASSWORD_HASH environment variable is required! "
-        "To generate hash: python -c \"import bcrypt; "
+        'To generate hash: python -c "import bcrypt; '
         "print(bcrypt.hashpw('your_password'.encode(), bcrypt.gensalt()).decode())\""
     )
 
@@ -233,5 +233,3 @@ def admin_required(f):
 
 # Initialize default admin on import
 ensure_default_admin()
-
-

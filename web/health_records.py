@@ -4,8 +4,13 @@ from flask import Blueprint, jsonify, request
 from bson import ObjectId
 from datetime import datetime
 
-import web.app as app  # Import app module to access db, logger, and helper functions
+import web.app as app  # Import app module to access db and logger
 from web.security import get_current_user, login_required
+from web.helpers import (
+    validate_pet_access,
+    parse_event_datetime_safe,
+    get_record_and_validate_access,
+)
 
 health_records_bp = Blueprint("health_records", __name__)
 
@@ -23,13 +28,13 @@ def add_asthma_attack():
         if error_response:
             return error_response[0], error_response[1]
 
-        success, error_response = app.validate_pet_access(pet_id, username)
+        success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(date_str, time_str, "asthma attack", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "asthma attack", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -65,7 +70,7 @@ def get_asthma_attacks():
     if error_response:
         return error_response[0], error_response[1]
 
-    success, error_response = app.validate_pet_access(pet_id, username)
+    success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
 
@@ -92,7 +97,7 @@ def update_asthma_attack(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "asthma_attacks", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "asthma_attacks", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -100,7 +105,7 @@ def update_asthma_attack(record_id):
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(
+        event_dt, error_response = parse_event_datetime_safe(
             date_str, time_str, "asthma attack update", pet_id, username
         )
         if error_response:
@@ -128,7 +133,9 @@ def update_asthma_attack(record_id):
         )
         return jsonify({"error": "Invalid input data"}), 400
     except Exception as e:
-        app.logger.error(f"Error updating asthma attack: record_id={record_id}, user={username}, error={e}", exc_info=True)
+        app.logger.error(
+            f"Error updating asthma attack: record_id={record_id}, user={username}, error={e}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -141,7 +148,7 @@ def delete_asthma_attack(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "asthma_attacks", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "asthma_attacks", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -159,7 +166,9 @@ def delete_asthma_attack(record_id):
         )
         return jsonify({"error": "Invalid record_id format"}), 400
     except Exception as e:
-        app.logger.error(f"Error deleting asthma attack: record_id={record_id}, user={username}, error={e}", exc_info=True)
+        app.logger.error(
+            f"Error deleting asthma attack: record_id={record_id}, user={username}, error={e}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -176,13 +185,13 @@ def add_defecation():
         if error_response:
             return error_response[0], error_response[1]
 
-        success, error_response = app.validate_pet_access(pet_id, username)
+        success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(date_str, time_str, "defecation", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "defecation", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -218,7 +227,7 @@ def get_defecations():
     if error_response:
         return error_response[0], error_response[1]
 
-    success, error_response = app.validate_pet_access(pet_id, username)
+    success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
 
@@ -241,7 +250,7 @@ def update_defecation(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "defecations", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "defecations", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -249,7 +258,7 @@ def update_defecation(record_id):
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(date_str, time_str, "defecation update", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "defecation update", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -270,7 +279,9 @@ def update_defecation(record_id):
         return jsonify({"success": True, "message": "Дефекация обновлена"}), 200
 
     except ValueError as e:
-        app.logger.warning(f"Invalid input data for defecation update: record_id={record_id}, user={username}, error={e}")
+        app.logger.warning(
+            f"Invalid input data for defecation update: record_id={record_id}, user={username}, error={e}"
+        )
         return jsonify({"error": "Invalid input data"}), 400
     except Exception as e:
         app.logger.error(f"Error updating defecation: record_id={record_id}, user={username}, error={e}", exc_info=True)
@@ -286,7 +297,7 @@ def delete_defecation(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "defecations", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "defecations", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -299,7 +310,9 @@ def delete_defecation(record_id):
         return jsonify({"success": True, "message": "Дефекация удалена"}), 200
 
     except ValueError as e:
-        app.logger.warning(f"Invalid record_id for defecation deletion: record_id={record_id}, user={username}, error={e}")
+        app.logger.warning(
+            f"Invalid record_id for defecation deletion: record_id={record_id}, user={username}, error={e}"
+        )
         return jsonify({"error": "Invalid record_id format"}), 400
     except Exception as e:
         app.logger.error(f"Error deleting defecation: record_id={record_id}, user={username}, error={e}", exc_info=True)
@@ -319,13 +332,13 @@ def add_litter():
         if error_response:
             return error_response[0], error_response[1]
 
-        success, error_response = app.validate_pet_access(pet_id, username)
+        success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(date_str, time_str, "litter change", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "litter change", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -358,7 +371,7 @@ def get_litter_changes():
     if error_response:
         return error_response[0], error_response[1]
 
-    success, error_response = app.validate_pet_access(pet_id, username)
+    success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
 
@@ -381,7 +394,7 @@ def update_litter(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "litter_changes", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "litter_changes", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -389,7 +402,7 @@ def update_litter(record_id):
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(
+        event_dt, error_response = parse_event_datetime_safe(
             date_str, time_str, "litter change update", pet_id, username
         )
         if error_response:
@@ -411,7 +424,9 @@ def update_litter(record_id):
         )
         return jsonify({"error": "Invalid input data"}), 400
     except Exception as e:
-        app.logger.error(f"Error updating litter change: record_id={record_id}, user={username}, error={e}", exc_info=True)
+        app.logger.error(
+            f"Error updating litter change: record_id={record_id}, user={username}, error={e}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -424,7 +439,7 @@ def delete_litter(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "litter_changes", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "litter_changes", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -442,7 +457,9 @@ def delete_litter(record_id):
         )
         return jsonify({"error": "Invalid record_id format"}), 400
     except Exception as e:
-        app.logger.error(f"Error deleting litter change: record_id={record_id}, user={username}, error={e}", exc_info=True)
+        app.logger.error(
+            f"Error deleting litter change: record_id={record_id}, user={username}, error={e}", exc_info=True
+        )
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -459,13 +476,13 @@ def add_weight():
         if error_response:
             return error_response[0], error_response[1]
 
-        success, error_response = app.validate_pet_access(pet_id, username)
+        success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(date_str, time_str, "weight", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "weight", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -500,7 +517,7 @@ def get_weights():
     if error_response:
         return error_response[0], error_response[1]
 
-    success, error_response = app.validate_pet_access(pet_id, username)
+    success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
 
@@ -523,7 +540,7 @@ def update_weight(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "weights", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "weights", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -531,7 +548,7 @@ def update_weight(record_id):
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(date_str, time_str, "weight update", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "weight update", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -567,7 +584,7 @@ def delete_weight(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "weights", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "weights", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -600,13 +617,13 @@ def add_feeding():
         if error_response:
             return error_response[0], error_response[1]
 
-        success, error_response = app.validate_pet_access(pet_id, username)
+        success, error_response = validate_pet_access(pet_id, username)
         if not success:
             return error_response[0], error_response[1]
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(date_str, time_str, "feeding", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "feeding", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -640,7 +657,7 @@ def get_feedings():
     if error_response:
         return error_response[0], error_response[1]
 
-    success, error_response = app.validate_pet_access(pet_id, username)
+    success, error_response = validate_pet_access(pet_id, username)
     if not success:
         return error_response[0], error_response[1]
 
@@ -663,7 +680,7 @@ def update_feeding(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "feedings", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "feedings", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -671,7 +688,7 @@ def update_feeding(record_id):
 
         date_str = data.get("date")
         time_str = data.get("time")
-        event_dt, error_response = app.parse_event_datetime_safe(date_str, time_str, "feeding update", pet_id, username)
+        event_dt, error_response = parse_event_datetime_safe(date_str, time_str, "feeding update", pet_id, username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -706,7 +723,7 @@ def delete_feeding(record_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        existing, pet_id, error_response = app.get_record_and_validate_access(record_id, "feedings", username)
+        existing, pet_id, error_response = get_record_and_validate_access(record_id, "feedings", username)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -724,4 +741,3 @@ def delete_feeding(record_id):
     except Exception as e:
         app.logger.error(f"Error deleting feeding: record_id={record_id}, user={username}, error={e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
-

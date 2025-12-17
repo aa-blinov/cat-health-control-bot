@@ -25,6 +25,7 @@ class TestAsthmaRecords:
     def test_create_asthma_success(self, client, mock_db, regular_user_token, test_pet):
         """Test creating an asthma attack record."""
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
         response = client.post(
             "/api/asthma",
@@ -47,6 +48,7 @@ class TestAsthmaRecords:
 
         # Verify record was created in database with correct fields
         from web.app import db
+
         record = db["asthma_attacks"].find_one({"pet_id": str(test_pet["_id"]), "username": "testuser"})
         assert record is not None
         assert record["duration"] == "5 minutes"
@@ -129,6 +131,7 @@ class TestAsthmaRecords:
 
         # Verify record was updated in database with correct fields
         from web.app import db
+
         updated_record = db["asthma_attacks"].find_one({"_id": record.inserted_id})
         assert updated_record is not None
         assert updated_record["duration"] == "10 minutes"
@@ -196,6 +199,7 @@ class TestDefecationRecords:
 
         # Verify record was created in database with correct fields
         from web.app import db
+
         record = db["defecations"].find_one({"pet_id": str(test_pet["_id"]), "username": "testuser"})
         assert record is not None
         assert record["stool_type"] == "Normal"
@@ -260,6 +264,7 @@ class TestDefecationRecords:
 
         # Verify record was updated in database with correct fields
         from web.app import db
+
         updated_record = db["defecations"].find_one({"_id": record.inserted_id})
         assert updated_record is not None
         assert updated_record["stool_type"] == "Diarrhea"
@@ -313,6 +318,7 @@ class TestLitterRecords:
 
         # Verify record was created in database with correct fields
         from web.app import db
+
         record = db["litter_changes"].find_one({"pet_id": str(test_pet["_id"]), "username": "testuser"})
         assert record is not None
         assert record["comment"] == "Changed litter"
@@ -369,6 +375,7 @@ class TestLitterRecords:
 
         # Verify record was updated in database with correct fields
         from web.app import db
+
         updated_record = db["litter_changes"].find_one({"_id": record.inserted_id})
         assert updated_record is not None
         assert updated_record["comment"] == "Updated comment"
@@ -421,6 +428,7 @@ class TestWeightRecords:
 
         # Verify record was created in database with correct fields
         from web.app import db
+
         record = db["weights"].find_one({"pet_id": str(test_pet["_id"]), "username": "testuser"})
         assert record is not None
         assert record["weight"] == 4.5
@@ -482,6 +490,7 @@ class TestWeightRecords:
 
         # Verify record was updated in database with correct fields
         from web.app import db
+
         updated_record = db["weights"].find_one({"_id": record.inserted_id})
         assert updated_record is not None
         assert updated_record["weight"] == 5.0
@@ -535,6 +544,7 @@ class TestFeedingRecords:
 
         # Verify record was created in database with correct fields
         from web.app import db
+
         record = db["feedings"].find_one({"pet_id": str(test_pet["_id"]), "username": "testuser"})
         assert record is not None
         assert record["food_weight"] == 100
@@ -595,6 +605,7 @@ class TestFeedingRecords:
 
         # Verify record was updated in database with correct fields
         from web.app import db
+
         updated_record = db["feedings"].find_one({"_id": record.inserted_id})
         assert updated_record is not None
         assert updated_record["food_weight"] == 150
@@ -620,4 +631,3 @@ class TestFeedingRecords:
 
         assert response.status_code == 200
         assert mock_db["feedings"].find_one({"_id": record.inserted_id}) is None
-

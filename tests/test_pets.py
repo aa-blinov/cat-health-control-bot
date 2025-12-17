@@ -316,9 +316,7 @@ class TestPetManagement:
 
     def test_get_pet_photo_invalid_pet_id(self, client, regular_user_token):
         """Test getting photo with invalid pet_id format."""
-        response = client.get(
-            "/api/pets/invalid_id/photo", headers={"Authorization": f"Bearer {regular_user_token}"}
-        )
+        response = client.get("/api/pets/invalid_id/photo", headers={"Authorization": f"Bearer {regular_user_token}"})
 
         assert response.status_code == 400
         data = response.get_json()

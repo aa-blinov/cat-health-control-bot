@@ -195,5 +195,3 @@ def reset_user_password(username):
     except Exception as e:
         logger.error(f"Error resetting password: username={username}, error={e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
-
-

@@ -10,6 +10,8 @@ from flask import (
     url_for,
 )
 
+from functools import wraps
+
 from web.app import limiter, logger  # app-level singletons
 import web.app as app  # use app.db so test patches (web.app.db) are visible
 from web.security import (
@@ -24,6 +26,58 @@ from web.security import (
     create_refresh_token,
     verify_user_credentials,
 )
+
+
+def page_login_required(f):
+    """Login-required decorator for HTML pages (redirects to login instead of JSON 401)."""
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token = get_token_from_request()
+        payload = None
+        new_token = None
+
+        if token:
+            payload = verify_token(token, "access")
+
+        if not payload:
+            # Token missing or invalid, try to refresh
+            new_token = try_refresh_access_token()
+            if new_token:
+                payload = verify_token(new_token, "access")
+                if not payload:
+                    new_token = None
+
+        if not payload:
+            # No valid token available -> redirect to login page
+            return redirect(url_for("auth.login"))
+
+        # We have valid token (either original or refreshed)
+        request.current_user = payload.get("username")
+
+        # Execute the function
+        response = f(*args, **kwargs)
+
+        # If we refreshed the token, set it in the response cookie
+        if new_token:
+            if isinstance(response, tuple):
+                response_obj, status_code = response[0], response[1] if len(response) > 1 else 200
+                response = make_response(response_obj, status_code)
+            elif not hasattr(response, "set_cookie"):
+                response = make_response(response)
+
+            response.set_cookie(
+                "access_token",
+                new_token,
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                httponly=True,
+                secure=False,
+                samesite="Lax",
+            )
+
+        return response
+
+    return decorated_function
 
 
 auth_bp = Blueprint("auth", __name__)
@@ -230,7 +284,12 @@ def login():
 
     # GET request - render login page
     return render_template("login.html")
-    # GET request - render login page
-    return render_template("login.html")
 
 
+@auth_bp.route("/logout", methods=["GET"], endpoint="logout")
+def logout():
+    """Logout route - clear tokens and redirect to login."""
+    response = make_response(redirect(url_for("auth.login")))
+    response.set_cookie("access_token", "", max_age=0)
+    response.set_cookie("refresh_token", "", max_age=0)
+    return response

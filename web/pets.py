@@ -7,7 +7,8 @@ from flask import Blueprint, jsonify, make_response, request, url_for
 
 from web.app import logger  # shared logger
 from web.security import login_required, get_current_user
-import web.app as app  # to access patched app.db/app.fs and helpers in tests
+import web.app as app  # to access patched app.db/app.fs in tests
+from web.helpers import get_pet_and_validate, validate_pet_id, parse_date
 
 
 pets_bp = Blueprint("pets", __name__)
@@ -21,11 +22,7 @@ def get_pets():
     if error_response:
         return error_response[0], error_response[1]
 
-    pets = list(
-        app.db["pets"]
-        .find({"$or": [{"owner": username}, {"shared_with": username}]})
-        .sort("created_at", -1)
-    )
+    pets = list(app.db["pets"].find({"$or": [{"owner": username}, {"shared_with": username}]}).sort("created_at", -1))
 
     for pet in pets:
         pet["_id"] = str(pet["_id"])
@@ -71,7 +68,7 @@ def create_pet():
             birth_date = None
             if request.form.get("birth_date"):
                 try:
-                    birth_date = app.parse_date(
+                    birth_date = parse_date(
                         request.form.get("birth_date"),
                         allow_future=False,
                         max_past_years=50,
@@ -100,7 +97,7 @@ def create_pet():
             birth_date = None
             if data.get("birth_date"):
                 try:
-                    birth_date = app.parse_date(
+                    birth_date = parse_date(
                         data.get("birth_date"),
                         allow_future=False,
                         max_past_years=50,
@@ -148,7 +145,7 @@ def get_pet(pet_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        pet, error_response = app.get_pet_and_validate(pet_id, username, require_owner=False)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=False)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -187,7 +184,7 @@ def update_pet(pet_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        pet, error_response = app.get_pet_and_validate(pet_id, username, require_owner=True)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -232,7 +229,7 @@ def update_pet(pet_id):
             birth_date = None
             if request.form.get("birth_date"):
                 try:
-                    birth_date = app.parse_date(
+                    birth_date = parse_date(
                         request.form.get("birth_date"),
                         allow_future=False,
                         max_past_years=50,
@@ -260,7 +257,7 @@ def update_pet(pet_id):
             birth_date = None
             if data.get("birth_date"):
                 try:
-                    birth_date = app.parse_date(
+                    birth_date = parse_date(
                         data.get("birth_date"),
                         allow_future=False,
                         max_past_years=50,
@@ -302,7 +299,7 @@ def share_pet(pet_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        pet, error_response = app.get_pet_and_validate(pet_id, username, require_owner=True)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -345,7 +342,7 @@ def unshare_pet(pet_id, share_username):
         if error_response:
             return error_response[0], error_response[1]
 
-        pet, error_response = app.get_pet_and_validate(pet_id, username, require_owner=True)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -371,7 +368,7 @@ def delete_pet(pet_id):
         if error_response:
             return error_response[0], error_response[1]
 
-        pet, error_response = app.get_pet_and_validate(pet_id, username, require_owner=True)
+        pet, error_response = get_pet_and_validate(pet_id, username, require_owner=True)
         if error_response:
             return error_response[0], error_response[1]
 
@@ -396,7 +393,7 @@ def delete_pet(pet_id):
 def get_pet_photo(pet_id):
     """Get pet photo file."""
     try:
-        if not app.validate_pet_id(pet_id):
+        if not validate_pet_id(pet_id):
             return jsonify({"error": "Неверный формат pet_id"}), 400
 
         username = getattr(request, "current_user", None)
@@ -440,5 +437,3 @@ def get_pet_photo(pet_id):
             exc_info=True,
         )
         return jsonify({"error": "Internal server error"}), 500
-
-

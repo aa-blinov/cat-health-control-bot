@@ -7,8 +7,9 @@ from urllib.parse import quote
 
 from flask import Blueprint, jsonify, make_response, request
 
-import web.app as app  # access db, logger, helpers
+import web.app as app  # access db, logger
 from web.security import login_required
+from web.helpers import validate_pet_id, check_pet_access
 
 
 export_bp = Blueprint("export", __name__)
@@ -24,7 +25,7 @@ def export_data(export_type, format_type):
         if not pet_id:
             return jsonify({"error": "pet_id обязателен"}), 400
 
-        if not app.validate_pet_id(pet_id):
+        if not validate_pet_id(pet_id):
             return jsonify({"error": "Неверный формат pet_id"}), 400
 
         username = getattr(request, "current_user", None)
@@ -32,7 +33,7 @@ def export_data(export_type, format_type):
             return jsonify({"error": "Unauthorized"}), 401
 
         # Check pet access
-        if not app.check_pet_access(pet_id, username):
+        if not check_pet_access(pet_id, username):
             return jsonify({"error": "Нет доступа к этому животному"}), 403
 
         if export_type == "feeding":
@@ -203,9 +204,7 @@ def export_data(export_type, format_type):
         response.headers["Content-Type"] = mimetype
         response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded_filename}"
         response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
-        app.logger.info(
-            f"Data exported: type={export_type}, format={format_type}, pet_id={pet_id}, user={username}"
-        )
+        app.logger.info(f"Data exported: type={export_type}, format={format_type}, pet_id={pet_id}, user={username}")
         return response
 
     except ValueError as e:
@@ -219,5 +218,3 @@ def export_data(export_type, format_type):
             exc_info=True,
         )
         return jsonify({"error": "Internal server error"}), 500
-
-
