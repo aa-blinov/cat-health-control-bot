@@ -257,3 +257,103 @@ class TestPetManagement:
         # Verify access removed
         pet = db["pets"].find_one({"_id": test_pet["_id"]})
         assert "shareuser" not in pet.get("shared_with", [])
+
+    def test_get_pet_photo_requires_authentication(self, client):
+        """Test that getting pet photo requires authentication."""
+        response = client.get("/api/pets/123/photo")
+        assert response.status_code == 401
+
+    def test_get_pet_photo_requires_access(self, client, mock_db, regular_user_token, admin_pet):
+        """Test that getting pet photo requires access to pet."""
+        # Create pet with photo
+        from web.app import db
+        from bson import ObjectId
+
+        photo_file_id = ObjectId()
+        db["pets"].update_one({"_id": admin_pet["_id"]}, {"$set": {"photo_file_id": str(photo_file_id)}})
+
+        response = client.get(
+            f"/api/pets/{admin_pet['_id']}/photo", headers={"Authorization": f"Bearer {regular_user_token}"}
+        )
+
+        assert response.status_code == 403
+
+    def test_get_pet_photo_not_found(self, client, mock_db, regular_user_token, test_pet):
+        """Test getting photo for pet without photo."""
+        response = client.get(
+            f"/api/pets/{test_pet['_id']}/photo", headers={"Authorization": f"Bearer {regular_user_token}"}
+        )
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "error" in data
+
+    def test_get_pet_photo_success(self, client, mock_db, regular_user_token, test_pet):
+        """Test successfully getting pet photo."""
+        from web.app import db, fs
+        from bson import ObjectId
+        from unittest.mock import MagicMock, patch
+
+        # Create photo file ID
+        photo_file_id = ObjectId()
+        db["pets"].update_one({"_id": test_pet["_id"]}, {"$set": {"photo_file_id": str(photo_file_id)}})
+
+        # Mock GridFS file
+        mock_file = MagicMock()
+        mock_file.read.return_value = b"fake_image_data"
+        mock_file.content_type = "image/jpeg"
+
+        with patch.object(fs, "get", return_value=mock_file):
+            response = client.get(
+                f"/api/pets/{test_pet['_id']}/photo", headers={"Authorization": f"Bearer {regular_user_token}"}
+            )
+
+        assert response.status_code == 200
+        assert response.data == b"fake_image_data"
+        assert response.content_type == "image/jpeg"
+        assert "inline" in response.headers.get("Content-Disposition", "")
+        assert "max-age=3600" in response.headers.get("Cache-Control", "")
+
+    def test_get_pet_photo_invalid_pet_id(self, client, regular_user_token):
+        """Test getting photo with invalid pet_id format."""
+        response = client.get(
+            "/api/pets/invalid_id/photo", headers={"Authorization": f"Bearer {regular_user_token}"}
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+
+    def test_get_pet_photo_pet_not_found(self, client, mock_db, regular_user_token):
+        """Test getting photo for non-existent pet."""
+        from bson import ObjectId
+
+        fake_pet_id = ObjectId()
+        response = client.get(
+            f"/api/pets/{fake_pet_id}/photo", headers={"Authorization": f"Bearer {regular_user_token}"}
+        )
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "error" in data
+
+    def test_get_pet_photo_gridfs_error(self, client, mock_db, regular_user_token, test_pet):
+        """Test handling GridFS errors when getting photo."""
+        from web.app import db, fs
+        from bson import ObjectId
+        from unittest.mock import patch
+
+        # Create photo file ID
+        photo_file_id = ObjectId()
+        db["pets"].update_one({"_id": test_pet["_id"]}, {"$set": {"photo_file_id": str(photo_file_id)}})
+
+        # Mock GridFS to raise an error
+        with patch.object(fs, "get", side_effect=Exception("GridFS error")):
+            response = client.get(
+                f"/api/pets/{test_pet['_id']}/photo", headers={"Authorization": f"Bearer {regular_user_token}"}
+            )
+
+        assert response.status_code == 404
+        data = response.get_json()
+        assert "error" in data
+        assert "Ошибка загрузки фото" in data["error"] or "error" in data
